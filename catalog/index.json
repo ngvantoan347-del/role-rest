@@ -1,0 +1,19 @@
+{
+  "skills": [
+    {
+      "name": "software-engineer",
+      "version": "1",
+      "files": [
+        "SKILL.md",
+        "references/discovery-playbook.md",
+        "references/stack-commands.md",
+        "references/plan-template.md",
+        "references/design-guide.md",
+        "references/testing-guide.md",
+        "references/anti-patterns.md",
+        "references/git-workflow.md",
+        "references/dod-checklist.md"
+      ]
+    }
+  ]
+}
