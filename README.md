@@ -85,11 +85,16 @@ node scripts/smells.mjs --changed
 node scripts/smells.mjs --strict --json
 ```
 
-`verify.mjs` exits non-zero when a gate fails and reports gates it could not find, so a
-missing linter is never mistaken for a passing one. `smells.mjs` flags debt markers,
-hardcoded secrets, swallowed exceptions, disabled tests, debug leftovers, type
-suppressions, commented-out code, oversized files and functions, and source changes with no
-accompanying test.
+`verify.mjs` detects the project's real gates from its own config - `package.json`,
+`Makefile`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `mvnw`, and friends - then runs them.
+It exits non-zero on failure and reports undetected gates as `MISSING`, so a project with
+no linter is never mistaken for a clean one.
+
+`smells.mjs` audits a diff for the mechanical residue only: debt markers, hardcoded secrets,
+swallowed exceptions, disabled tests, type and lint suppressions, debug prints, stub
+functions, commented-out code, oversized files, and source changes with no test. Judgment
+smells - god objects, layer violations, copy-paste, scope creep - need a human, and live in
+`references/anti-patterns.md` rather than in a regex.
 
 ### Contents
 
@@ -98,18 +103,16 @@ catalog/
 ├── index.json                        HTTP catalog manifest
 └── software-engineer/
     ├── SKILL.md                      the discipline: tiers, loop, non-negotiables
-    ├── references/
-    │   ├── discovery-playbook.md     reading an unfamiliar repo fast
-    │   ├── stack-commands.md         real gates per ecosystem
-    │   ├── plan-template.md          T2 and T3 plan formats, drift handling
+    ├── references/                   loaded on demand, not on activation
+    │   ├── plan-template.md          T2/T3 plan formats, plan-drift handling
     │   ├── design-guide.md           boundaries, contracts, data, migrations, security
-    │   ├── testing-guide.md          what to test, test doubles, CI gates
-    │   ├── anti-patterns.md          the smell catalog: symptom, cause, fix
-    │   ├── git-workflow.md           commits, branches, PRs, secrets, recovery
+    │   ├── testing-guide.md          what to test, test doubles, red suites
+    │   ├── git-workflow.md           commits, PRs, secrets, history recovery
+    │   ├── anti-patterns.md          judgment smells no regex can catch
     │   └── dod-checklist.md          Definition of Done + handoff template
     └── scripts/
-        ├── verify.mjs                run the project's gates
-        └── smells.mjs                audit the diff for debt
+        ├── verify.mjs                detect and run the project's real gates
+        └── smells.mjs                audit a diff for mechanical debt
 ```
 
 ## Contributing

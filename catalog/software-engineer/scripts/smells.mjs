@@ -1,46 +1,38 @@
 #!/usr/bin/env node
 /**
- * smells.mjs - scan for the mechanical residue of vibe coding.
+ * smells.mjs - the mechanical residue of vibe coding.
  *
- * Finds debt markers, debug leftovers, type/lint suppressions, hardcoded secrets, empty
- * catch blocks, skipped tests, possible commented-out code, oversized files/functions,
- * and changed source code with no test change. Pure Node, no dependencies, no writes.
+ * Flags what a regex can honestly judge: debt markers, swallowed exceptions, hardcoded
+ * secrets, disabled tests, type/lint suppressions, debug leftovers, stub functions, and
+ * source changes with no accompanying test. The judgment smells live in
+ * references/anti-patterns.md; this script deliberately does not pretend to judge them.
  *
  * Usage:
- *   node smells.mjs               # scan tracked source files
- *   node smells.mjs --changed     # scan only files touched in the working tree (staged + unstaged + untracked)
+ *   node smells.mjs               # tracked source files
+ *   node smells.mjs --changed     # working tree only (staged + unstaged + untracked)
  *   node smells.mjs --staged      # staged only
- *   node smells.mjs --strict      # also report `any` casts and long lines
- *   node smells.mjs --json        # machine-readable output
- *   node smells.mjs --max-lines 300 --ignore "*.test.ts,legacy/**"
+ *   node smells.mjs --strict      # also `any` casts, non-null assertions, long lines
+ *   node smells.mjs --json        # machine-readable
+ *   node smells.mjs --max-lines 300 --max-func-lines 60 --ignore "vendor,legacy"
  *
- * Exit codes: 0 no errors (warnings may remain), 1 at least one error finding.
+ * Exit: 0 no errors (warnings may remain), 1 at least one error, 2 bad usage.
  */
 
 import { spawnSync } from "node:child_process"
-import { readFileSync, readdirSync, statSync } from "node:fs"
-import { extname, join, relative, resolve } from "node:path"
-
-/* ---------- args ---------- */
+import { readFileSync, statSync } from "node:fs"
+import { extname, relative, resolve } from "node:path"
 
 const argv = process.argv.slice(2)
 const has = (f) => argv.includes(f)
 const opt = (f, d) => {
   const i = argv.indexOf(f)
-  return i >= 0 && argv[i + 1] ? argv[i + 1] : d
+  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[i + 1] : d
 }
-const changed = has("--changed")
-const staged = has("--staged")
-const strict = has("--strict")
-const json = has("--json")
-const color = !has("--no-color") && !json && process.stdout.isTTY !== false
+const { changed, staged, strict, json } = { changed: has("--changed"), staged: has("--staged"), strict: has("--strict"), json: has("--json") }
+const color = !has("--no-color") && !json
 const maxLines = Number(opt("--max-lines", 500))
 const maxFuncLines = Number(opt("--max-func-lines", 80))
-const ignoreGlobs = opt("--ignore", "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean)
-  .map((s) => (s.endsWith("**") ? s.slice(0, -2) : s.replace(/\/\*\*$/, "").replace(/\*$/, "")))
+const ignore = opt("--ignore", "").split(",").map((s) => s.trim().replace(/\\/g, "/")).filter(Boolean)
 const root = process.cwd()
 
 const c = (code, s) => (color ? `\u001b[${code}m${s}\u001b[0m` : s)
@@ -50,51 +42,17 @@ const red = (s) => c("31", s)
 const yellow = (s) => c("33", s)
 const cyan = (s) => c("36", s)
 
-/* ---------- file selection ---------- */
+/* ---------- what to scan ---------- */
 
-const SRC_EXT = new Set([
-  ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".py", ".go", ".rs",
-  ".java", ".kt", ".kts", ".rb", ".php", ".cs", ".c", ".h", ".cc", ".cpp", ".hpp",
-  ".swift", ".scala", ".sh", ".bash", ".zsh", ".ps1", ".sql", ".vue", ".svelte", ".ex", ".exs",
-])
+const SRC_EXT = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".py", ".go", ".rs", ".java", ".kt", ".kts", ".rb", ".php", ".cs", ".c", ".h", ".cc", ".cpp", ".hpp", ".swift", ".scala", ".sh", ".bash", ".zsh", ".ps1", ".sql", ".vue", ".svelte", ".ex", ".exs"])
 const TEST_RE = /(^|\/)(tests?|__tests__|spec)\/|\.(test|spec)\.[a-z]+$|(^|\/)test_[^/]+$|[^/]+_test\.[a-z]+$/
-const SKIP_DIR = new Set([
-  "node_modules", "dist", "build", "out", ".git", "vendor", "target", "coverage",
-  "__pycache__", ".venv", "venv", ".next", ".nuxt", ".svelte-kit", ".idea", ".vscode",
-  "bin", "obj", ".gradle", "Pods", ".terraform", "migrations/generated",
-])
-
-const git = (...args) => {
-  const r = spawnSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
-  return r.status === 0 ? r.stdout.split("\n").filter(Boolean) : null
-}
-
 const isSource = (p) => SRC_EXT.has(extname(p).toLowerCase())
 const isTest = (p) => TEST_RE.test(p.replace(/\\/g, "/"))
-const ignored = (p) => {
-  const n = p.replace(/\\/g, "/")
-  return ignoreGlobs.some((g) => n.includes(g.replace(/\\/g, "/")))
-}
+const norm = (p) => p.replace(/\\/g, "/")
 
-function walk(dir, out = [], depth = 0) {
-  if (depth > 12 || out.length > 5000) return out
-  let entries
-  try {
-    entries = readdirSync(dir, { withFileTypes: true })
-  } catch {
-    return out
-  }
-  for (const e of entries) {
-    if (e.name.startsWith(".") && e.name !== ".") continue
-    const full = join(dir, e.name)
-    if (e.isDirectory()) {
-      if (SKIP_DIR.has(e.name)) continue
-      walk(full, out, depth + 1)
-    } else if (e.isFile() && isSource(full)) {
-      out.push(full)
-    }
-  }
-  return out
+const git = (...a) => {
+  const r = spawnSync("git", a, { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
+  return r.status === 0 ? r.stdout.split("\n").filter(Boolean) : null
 }
 
 function selectFiles() {
@@ -102,21 +60,18 @@ function selectFiles() {
   if (changed || staged) {
     // A repo with no commits has no HEAD, so fall back to the empty tree.
     const base = git("rev-parse", "--verify", "HEAD") ? "HEAD" : "--cached"
-    const cmd = staged
-      ? ["diff", "--cached", "--name-only", "--diff-filter=ACMR"]
-      : ["diff", base, "--name-only", "--diff-filter=ACMR"]
-    list = git(...cmd) || []
-    if (!staged) list = [...new Set([...list, ...(git("ls-files", "--others", "--exclude-standard") || [])])]
+    list = staged ? git("diff", "--cached", "--name-only", "--diff-filter=ACMR") : git("diff", base, "--name-only", "--diff-filter=ACMR")
+    if (!staged) list = [...new Set([...(list || []), ...(git("ls-files", "--others", "--exclude-standard") || [])])]
   } else {
-    const tracked = git("ls-files")
-    list = tracked ? tracked : walk(root).map((p) => relative(root, p))
+    list = git("ls-files") || []
   }
   return [...new Set(list)]
-    .filter((p) => isSource(p) && !ignored(p))
+    .filter((p) => isSource(p) && !ignore.some((g) => norm(p).includes(g)))
     .map((p) => resolve(root, p))
     .filter((p) => {
       try {
-        return statSync(p).isFile() && statSync(p).size < 2 * 1024 * 1024
+        const st = statSync(p)
+        return st.isFile() && st.size < 2 * 1024 * 1024
       } catch {
         return false
       }
@@ -125,163 +80,95 @@ function selectFiles() {
 
 /* ---------- rules ---------- */
 
-const PLACEHOLDER = /(example|sample|dummy|placeholder|changeme|your[_-]?|xxx+|<[^>]+>|process\.env|os\.environ|getenv|redacted|\*\*\*)/i
+const E = (id, re, msg, extra) => ({ id, sev: "error", re, msg, ...extra })
+const W = (id, re, msg, extra) => ({ id, sev: "warn", re, msg, ...extra })
 
+// `not` exempts a shape that looks bad but is legitimate in isolation.
 const RULES = [
-  // --- debt markers ---
-  { id: "debt-marker", sev: "error", re: /\b(TODO|FIXME|XXX|HACK)\b/, msg: "debt marker left in the tree: needs an owner + tracked issue, or it gets deleted" },
-  { id: "unknown-works", sev: "error", re: /\b(idk|should work|works on my machine|don't touch|do not touch|magic number|trust me)\b/i, msg: "unexplained code: comments must say why, or the code goes" },
-  { id: "deferred", sev: "warn", re: /\b(quick fix|quickfix|add later|fixme later|for now|temp hack|not implemented yet)\b/i, msg: "deferred work: finish it, or track it" },
+  E("debt-marker", /\b(TODO|FIXME|XXX|HACK)\b/, "debt marker left in the tree: needs an owner + tracked issue, or it gets deleted"),
+  E("unknown-works", /\b(idk|should work|works on my machine|don't touch|do not touch|trust me)\b/i, "unexplained code: comments must say why, or the code goes"),
+  E("debugger-stmt", /^\s*debugger\b|^\s*dbg!\s*\(/, "debugger statement committed"),
+  E("ts-ignore", /@ts-ignore\b/, "type error suppressed instead of fixed"),
+  E("empty-catch", /catch\s*(\([^)]*\))?\s*\{\s*\}|except[^\n:]*:\s*(pass|\.\.\.)\s*$/, "exception swallowed: handle it or log it with a reason"),
+  E("disabled-test", /(^|[^.\w])x(it|describe)\s*\(|\.(skip|only)\s*\(|@Ignore\b|@pytest\.mark\.(skip|xfail)|t\.Skip\s*\(|#\[ignore\]/, "test disabled or focused: a permanent blind spot"),
 
-  // --- debug leftovers ---
-  // A plain string argument is a debug print; a computed argument is usually a CLI's real output.
-  // Quoted or interpolation-free template literal. A backtick containing `${` is almost
-  // always a CLI's real output rather than a leftover print.
-  {
-    id: "debug-leftover",
-    sev: "warn",
-    re: /\bconsole\.(log|debug|dir|trace|table)\s*\(\s*(["']|`(?![^`]*\$\{))/,
-    msg: "debug logging with a literal message: is this intentional output?",
-  },
-  { id: "debug-leftover", sev: "warn", re: /\bconsole\.(debug|dir|trace|table)\s*\(/, msg: "debug logging left behind" },
-  { id: "debugger-stmt", sev: "error", re: /^\s*debugger\b|^\s*dbg!\s*\(/, msg: "debugger statement committed" },
-  { id: "print-leftover", sev: "warn", re: /\bprint\s*\(|\bvar_dump\s*\(|\bfmt\.Print(ln|f)?\s*\(|System\.out\.print(ln)?\s*\(/, msg: "debug print left behind" },
+  // Secrets are checked everywhere, configs included - a key in a YAML file is still a leak.
+  E("hardcoded-secret", /(api[_-]?key|apikey|secret|password|passwd|token|private[_-]?key|access[_-]?key)\s*[:=]\s*["'][^"'\s]{8,}["']/i, "possible hardcoded secret: move to env/secret store", { not: /(example|sample|dummy|changeme|your[_-]?|xxx+|<[^>]+>|\$\{)/i }),
+  E("github-token", /\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bsk-[A-Za-z0-9]{20,}\b/, "token committed: rotate it now"),
+  E("aws-key", /\bAKIA[0-9A-Z]{16}\b/, "AWS access key id committed"),
+  E("private-key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/, "private key committed"),
+  E("bearer-literal", /\bBearer\s+[A-Za-z0-9._-]{24,}/, "hardcoded bearer token"),
 
-  // --- suppressions ---
-  { id: "ts-ignore", sev: "error", re: /@ts-ignore\b/, msg: "type error suppressed instead of fixed" },
-  { id: "lint-suppression", sev: "warn", re: /eslint-disable|@SuppressWarnings\("all"\)|\btype:\s*ignore\b|#\s*noqa\b|\bnoinspection\b/, msg: "lint/type suppression: fix the cause or scope it narrowly with a reason" },
-
-  // --- secrets ---
-  { id: "hardcoded-secret", sev: "error", re: /(api[_-]?key|apikey|secret|password|passwd|token|private[_-]?key|access[_-]?key)\s*[:=]\s*["'][^"'\s]{8,}["']/i, msg: "possible hardcoded secret: move to env/secret store" },
-  { id: "aws-key", sev: "error", re: /\bAKIA[0-9A-Z]{16}\b/, msg: "AWS access key id committed" },
-  { id: "private-key", sev: "error", re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/, msg: "private key committed" },
-  { id: "github-token", sev: "error", re: /\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}/, msg: "GitHub token committed: rotate it now" },
-  { id: "openai-key", sev: "error", re: /\bsk-[A-Za-z0-9]{20,}\b/, msg: "API key committed: rotate it now" },
-  { id: "bearer-literal", sev: "warn", re: /\bBearer\s+[A-Za-z0-9._-]{24,}/, msg: "hardcoded bearer token" },
-
-  // --- silently ignored failures ---
-  { id: "empty-catch", sev: "error", re: /catch\s*(\([^)]*\))?\s*\{\s*\}|except[^\n:]*:\s*(pass|\.\.\.)\s*$/, msg: "exception swallowed: handle it or log it with a reason" },
-  { id: "only-comment-catch", sev: "warn", re: /catch\s*(\([^)]*\))?\s*\{\s*\/\/[^\n]*\s*\}/, msg: "exception caught and ignored" },
-
-  // --- disabled tests ---
-  { id: "disabled-test", sev: "error", re: /(^|[^.\w])x(it|describe)\s*\(|\.(skip|only)\s*\(|@Ignore\b|@pytest\.mark\.(skip|xfail)|t\.Skip\s*\(|#\[ignore\]/, msg: "test disabled or focused: a permanent blind spot" },
+  W("deferred", /\b(quick fix|quickfix|add later|fixme later|for now|temp hack|not implemented yet)\b/i, "deferred work: finish it, or track it"),
+  // Exempt: a blank line, or a backtick template that interpolates - a CLI's real output.
+  W("debug-leftover", /\bconsole\.(log|debug|dir|trace|table)\s*\(|\bvar_dump\s*\(|\bfmt\.Print(ln|f)?\s*\(|System\.out\.print(ln)?\s*\(/, "debug print left behind: intentional output or leftover?", { not: /console\.[a-z]+\s*\(\s*(["'`])(?:[^"'`\\]|\\.|`[^`]*\$\{[^`]*`)*\1\s*[,)]/ }),
+  W("lint-suppression", /eslint-disable|@SuppressWarnings\("all"\)|\btype:\s*ignore\b|#\s*noqa\b|\bnoinspection\b/, "lint/type suppression: fix the cause or scope it narrowly with a reason"),
 ]
 
-// A function whose entire body is a sentinel return and nothing else. Patterns like
-// `return null` are legitimate in isolation (parse helpers, cache misses), so only flag
-// them when the declaration, the return, and the closing brace are the whole function.
-const STUB_BODY = /^\s*(export\s+)?(default\s+)?(async\s+)?function\s+[\w$]+|^\s*(export\s+)?(const|let|var)\s+[\w$]+\s*=\s*(async\s*)?\([^)]*\)\s*=>|^\s*def\s+\w+/
+// Commented-out code needs two conditions the regex table cannot express: the line must be
+// a comment, and long enough to be code rather than a prose note. Hence its own check.
+// A comment is suspected of hiding code when what follows reads as a statement: a keyword,
+// an assignment, or a call. Prose notes do not match any of these three.
+const CODE_COMMENT = /^\s*(\/\/|#)\s*(?:(if|for|while|return|const|let|var|def|class|import|from|export|await|try|catch|throw|function|async|self\.|print\(|console\.)\b|[\w$.[\]]+\s*(=|\(|=[^=]))/
 
 const STRICT_RULES = [
-  { id: "any-cast", sev: "warn", re: /\bas\s+any\b|:\s*any\b|<any>|any\[\]|\bdict\b.*#\s*type:\s*ignore/, msg: "type safety bypassed with any" },
-  { id: "non-null-assert", sev: "warn", re: /[)\w]!\s*[.;)\[]|\bas\s+const\b/, msg: "non-null assertion / const cast: verify, do not assume" },
+  W("any-cast", /\bas\s+any\b|:\s*any\b|<any>|any\[\]/, "type safety bypassed with any"),
+  W("non-null-assert", /[)\w]!\s*[.;)\[]|\bas\s+const\b/, "non-null assertion / const cast: verify, do not assume"),
+  W("long-line", /^.{161,}$/, "very long line"),
 ]
 
-/* ---------- analyzers ---------- */
+// A declaration whose body is one sentinel return and nothing else.
+const STUB_HEAD = /^\s*(export\s+)?(default\s+)?(async\s+)?function\s+[\w$]+|^\s*(export\s+)?(const|let|var)\s+[\w$]+\s*=\s*(async\s*)?\([^)]*\)\s*=>|^\s*def\s+\w+/
+const STUB_RETURN = /^(return\s+(null|undefined|None|\{\}|\[\])|pass|throw\s+new\s+Error\(\s*["'`](?:not implemented|TODO))/i
+const STUB_END = /^[)}\];]?[)}]?$/
+
+// Lint configs and static-analysis tools hold these patterns as data. Pointing a scanner at
+// its own rule table is noise, not signal.
+const CONFIG_LIKE = /(^|\/)(eslint|biome|ruff|flake8|tsconfig|suppress|lint|scanner|smells|verify)[^/]*$|(config|rc)\.(json|ya?ml|toml|ini)$/i
+const COMMENT = /^\s*(\/\/|\/\*|\*|#)/
+const PLACEHOLDER = /(example|sample|dummy|placeholder|changeme|your[_-]?|xxx+|<[^>]+>|process\.env|os\.environ|getenv|redacted|\*\*\*)/i
 
 const findings = []
-const add = (file, line, sev, id, msg, text) => {
-  if (sev === "warn" && PLACEHOLDER.test(text)) return
+const add = (file, line, sev, id, msg, text = "") =>
   findings.push({ file, line, sev, id, msg, text: text.trim().slice(0, 100) })
-}
-
-const CODE_COMMENT = /^\s*(\/\/|#)\s*(if\b|for\b|while\b|return\b|const\b|let\b|var\b|def\b|class\b|import\b|from\b|export\b|await\b|try\b|catch\b|throw\b|self\.|print\(|console\.|function\b|async\b)/
-
-// Lint configs and static-analysis tools hold debt markers and suppressions as data.
-// Reporting a scanner's own rule table back to it is noise, not signal.
-const SELF_RELATED =
-  /(^|\/)(eslint|biome|ruff|flake8|tsconfig|suppress|lint|scanner|smells|verify)[^/]*$|(config|rc)\.(json|ya?ml|toml|ini)$/i
-const FUNC_START = /^\s*(export\s+)?(async\s+)?(function|def|fn|func)\s|^\s*(public|private|protected|static|\s)*(async\s+)?[A-Za-z_$][\w$]*\s*\([^;]*\)\s*(->\s*[\w<>\[\]]+\s*)?\{\s*$|^\s*(class|struct|impl)\s+[A-Za-z_$]/
-const BRACEY = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".go", ".rs", ".java", ".kt", ".cs", ".c", ".cc", ".cpp", ".hpp", ".swift", ".scala", ".php", ".vue", ".svelte"])
 
 function analyze(file) {
-  const rel = relative(root, file).replace(/\\/g, "/")
   let content
   try {
     content = readFileSync(file, "utf8")
   } catch {
     return
   }
-  if (content.includes("\u0000")) return
+  if (content.includes("\0")) return
+
+  const rel = norm(relative(root, file))
+  const isConf = CONFIG_LIKE.test(rel)
   const lines = content.split(/\r?\n/)
-  const ext = extname(file).toLowerCase()
-  const rules = strict ? [...RULES, ...STRICT_RULES] : RULES
+  // A lint config or scanner holds these patterns as data, so only secret rules apply to it.
+  const rules = (strict ? [...RULES, ...STRICT_RULES] : RULES).filter((r) => !isConf || r.id.includes("secret") || r.id.includes("token") || r.id.includes("key"))
+  const test = isTest(rel)
+
+  if (lines.length > maxLines) {
+    add(rel, 1, "warn", "big-file", `file is ${lines.length} lines (limit ${maxLines}): split by responsibility`)
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     if (line.length > 2000) continue
-    const isCommentOnly = /^\s*(\/\/|\/\*|\*|#)/.test(line)
+    const comment = COMMENT.test(line)
+
     for (const r of rules) {
-      // A lint config or a scanner legitimately contains debt-marker and suppression
-      // patterns as data. Scanning them would only ever report the scanner at itself.
-      if (SELF_RELATED.test(rel)) continue
-      if (r.sev === "warn" && r.id !== "empty-catch" && r.id !== "only-comment-catch" && isCommentOnly) continue
+      if (comment && r.sev === "warn" && r.id !== "empty-catch") continue
       if (r.re.test(line) && !(r.not && r.not.test(line))) add(rel, i + 1, r.sev, r.id, r.msg, line)
     }
-    if (CODE_COMMENT.test(line) && line.trim().length > 12) {
+    if (!isConf && !test && comment && line.trim().length > 12 && CODE_COMMENT.test(line)) {
       add(rel, i + 1, "warn", "commented-code", "possible commented-out code: delete it, git remembers", line)
     }
-    if (strict && line.length > 160) {
-      add(rel, i + 1, "warn", "long-line", `very long line (${line.length} chars)`, line)
-    }
-  }
-
-  // Stub functions: declaration, sentinel return, closing brace, nothing else.
-  for (let i = 0; i < lines.length; i++) {
-    if (!STUB_BODY.test(lines[i])) continue
-    const body = lines[i + 1]?.trim() ?? ""
-    if (!/^(return\s+(null|undefined|None|\{\}|\[\])|pass|throw\s+new\s+Error\(\s*["'`](?:not implemented|TODO))/i.test(body)) continue
-    // The sentinel return must be the last statement: the next non-blank line closes the function.
-    const next = lines.slice(i + 2).map((l) => l.trim()).find((l) => l !== "")
-    if (next !== "}" && next !== ")" && next !== ");") continue
-    add(rel, i + 1, isTest(rel) ? "warn" : "error", "stub-function", "function is a stub: implement it or make it throw a clear not-implemented error", lines[i])
-  }
-
-  if (lines.length > maxLines) {
-    add(rel, 1, "warn", "big-file", `file is ${lines.length} lines (limit ${maxLines}): split by responsibility`, `// ${lines.length} lines`)
-  }
-
-  // Function length: brace tracking for curly languages, indentation for Python.
-  let reported = 0
-  if (BRACEY.has(ext)) {
-    let depth = 0
-    let start = -1
-    for (let i = 0; i < lines.length; i++) {
-      const l = lines[i]
-      if (start === -1 && FUNC_START.test(l) && !isTest(rel)) {
-        start = i
-        depth = 0
-      }
-      for (const ch of l) {
-        if (ch === "{") depth++
-        else if (ch === "}") depth--
-      }
-      if (start !== -1 && depth <= 0 && i > start) {
-        const len = i - start + 1
-        if (len > maxFuncLines && reported < 3) {
-          add(rel, start + 1, "warn", "long-function", `function is ~${len} lines (limit ${maxFuncLines}): split it`, lines[start])
-          reported++
-        }
-        start = -1
-      }
-      if (start === -1 && depth < 0) depth = 0
-    }
-  } else if (ext === ".py") {
-    for (let i = 0; i < lines.length; i++) {
-      const m = lines[i].match(/^(\s*)(async\s+)?def\s+\w+/)
-      if (!m) continue
-      const base = m[1].length
-      let end = lines.length
-      for (let j = i + 1; j < lines.length; j++) {
-        if (lines[j].trim() && !lines[j].startsWith(" ".repeat(base + 1)) && lines[j].trim()[0] !== "#") {
-          end = j
-          break
-        }
-      }
-      const len = end - i
-      if (len > maxFuncLines && reported < 3) {
-        add(rel, i + 1, "warn", "long-function", `function is ~${len} lines (limit ${maxFuncLines}): split it`, lines[i])
-        reported++
+    if (STUB_HEAD.test(line)) {
+      const body = lines[i + 1]?.trim() ?? ""
+      const next = lines.slice(i + 2).map((l) => l.trim()).find((l) => l !== "")
+      if (STUB_RETURN.test(body) && next !== undefined && STUB_END.test(next)) {
+        add(rel, i + 1, test ? "warn" : "error", "stub-function", "function is a stub: implement it, or throw a clear not-implemented error", line)
       }
     }
   }
@@ -289,39 +176,35 @@ function analyze(file) {
 
 /* ---------- run ---------- */
 
+// The synthetic no-test-change entry sorts last, so real findings read first.
+const SYNTHETIC = "<changed files>"
 const files = selectFiles()
-if (files.length === 0) {
-  console.log(json ? JSON.stringify({ findings: [], scanned: 0 }) : `\n  no source files matched (${changed || staged ? "working-tree selection" : "tracked files"})\n`)
+if (!files.length) {
+  if (json) console.log(JSON.stringify({ scanned: 0, findings: [] }))
+  else console.log(`\n  no source files matched (${changed || staged ? "working-tree selection" : "tracked files"})\n`)
   process.exit(0)
 }
+
 for (const f of files) analyze(f)
 
 if (changed || staged) {
-  const srcChanged = files.filter((f) => !isTest(f))
-  const testChanged = files.filter((f) => isTest(f))
-  if (srcChanged.length > 0 && testChanged.length === 0) {
-    add("<changed files>", 0, "warn", "no-test-change", `${srcChanged.length} source file(s) changed with no test change: is the new behavior covered?`, "")
+  const src = files.filter((f) => !isTest(f)).length
+  if (src > 0 && !files.some((f) => isTest(f))) {
+    add(SYNTHETIC, 0, "warn", "no-test-change", `${src} source file(s) changed with no test change: is the new behavior covered?`)
   }
 }
 
-const SYNTHETIC = "<changed files>"
-findings.sort((a, b) => {
-  // The synthetic no-test-change entry belongs at the end, not above the real findings.
-  if (a.file === SYNTHETIC) return 1
-  if (b.file === SYNTHETIC) return -1
-  return a.file.localeCompare(b.file) || a.line - b.line
-})
-
-if (json) {
-  console.log(JSON.stringify({ scanned: files.length, findings }, null, 2))
-  process.exit(findings.some((f) => f.sev === "error") ? 1 : 0)
-}
+findings.sort((a, b) => (a.file === SYNTHETIC ? 1 : 0) - (b.file === SYNTHETIC ? 1 : 0) || a.file.localeCompare(b.file) || a.line - b.line)
 
 const errors = findings.filter((f) => f.sev === "error")
 const warns = findings.filter((f) => f.sev === "warn")
-const scope = changed ? "working tree" : staged ? "staged" : "tracked files"
 
-console.log(bold(`\nsmells  ${findings.length} finding(s) in ${new Set(findings.map((f) => f.file)).size} file(s)  ${dim(`(scanned ${files.length} ${scope})`)}\n`))
+if (json) {
+  console.log(JSON.stringify({ scanned: files.length, findings }, null, 2))
+  process.exit(errors.length ? 1 : 0)
+}
+
+console.log(bold(`\nsmells  ${findings.length} finding(s) in ${new Set(findings.map((f) => f.file)).size} file(s)  ${dim(`(scanned ${files.length} ${changed ? "working tree" : staged ? "staged" : "tracked files"})`)}\n`))
 
 let file = null
 for (const f of findings) {
@@ -329,21 +212,16 @@ for (const f of findings) {
     file = f.file
     console.log(cyan(`  ${file}`))
   }
-  const tag = f.sev === "error" ? red("error") : yellow("warn ")
-  const ln = String(f.line).padStart(5)
-  const id = dim(f.id.padEnd(18))
-  console.log(`  ${tag} ${dim(ln)}  ${id} ${f.msg}`)
+  console.log(`  ${f.sev === "error" ? red("error") : yellow("warn ")} ${dim(String(f.line).padStart(5))}  ${dim(f.id.padEnd(16))} ${f.msg}`)
   if (f.text) console.log(`         ${dim(f.text)}`)
   console.log("")
 }
 
 console.log(`  ${red(`${errors.length} error(s)`)}  ${yellow(`${warns.length} warning(s)`)}`)
 if (errors.length) {
-  console.log(red("\n  fix the errors before calling this done. A finding you keep must have an owner and a tracked issue."))
-  console.log(dim("  need to keep one? Add a comment with a tracked issue link so the debt has an owner.\n"))
-} else if (warns.length) {
-  console.log(dim("\n  no blocking errors. Review the warnings: each one is either fixed now or explained in the handoff.\n"))
+  console.log(red("\n  fix the errors before calling this done. A finding you keep needs an owner and a tracked issue."))
+  console.log(dim("  need to keep one? Add a comment linking the issue, so the debt has an owner.\n"))
 } else {
-  console.log(dim("\n  clean.\n"))
+  console.log(dim(warns.length ? "\n  no blocking errors. Each warning is fixed now or explained in the handoff.\n" : "\n  clean.\n"))
 }
 process.exit(errors.length ? 1 : 0)

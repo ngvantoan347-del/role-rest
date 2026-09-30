@@ -1,98 +1,59 @@
 # Plan Templates
 
-The plan is a contract with the user, not a rehearsal. It states what will change, what
-will not, how it will be proven, and what could go wrong. It contains no code.
+The plan is a contract with the user, not a rehearsal. It says what changes, what does not,
+how it is proven, and what could go wrong. It contains no code.
 
-## T2 - standard task (inline, 5-7 lines)
+## T2 - inline, 5-7 lines
 
 ```text
 Plan
 - Goal: <observable behavior change, one sentence>
-- Approach: <2-3 sentences on the design and where it lives>
+- Approach: <2-3 sentences: the design and where it lives>
 - Files: <paths you expect to touch>
-- Verify: <exact commands and the expected result>
+- Verify: <exact commands and expected result>
 - Risk: <the one thing most likely to surprise us>
 ```
 
-Proceed after presenting it unless the task touches a risky path. Do not wait for
-ceremonial approval on a small, well-understood change.
+Proceed after presenting it unless the task hits a risky path. No ceremonial approval
+needed for a small, well-understood change.
 
-## T3 - deep task (structured, then stop for approval)
+## T3 - structured, then stop
 
-```markdown
-## Problem
-<What is actually wrong or missing, in the user's terms, with evidence: file:line, logs, docs.>
+```text
+Problem     <what is actually wrong, with evidence: file:line, logs, docs>
+Goal        <one sentence: the world after this change>
+Non-goals   <explicitly out of scope>
+Current     <entry point, owning module, existing pattern, what tests assert today>
 
-## Goal
-<One sentence. The world after this change.>
+Options     1. <name> - <mechanism> - cost: <effort, blast radius> - risk: <what breaks>
+            2. <name> - <mechanism> - cost: <effort, blast radius> - risk: <what breaks>
+            Recommend: <option> because <reason tied to the goal>
 
-## Non-goals
-<Explicitly out of scope, so it stays out of scope.>
-
-## Current state
-<How the system works today: entry point, the module that owns this behavior, the
-existing pattern, what the tests currently assert.>
-
-## Options
-| # | Option | How | Cost | Risk |
-|---|--------|-----|------|------|
-| 1 | <name> | <mechanism> | <effort, blast radius> | <what could break> |
-| 2 | <name> | <mechanism> | <effort, blast radius> | <what could break> |
-
-Recommend: <option> because <reason tied to the goal and the constraints>.
-
-## Design
-<Interfaces and contracts: signatures, data shapes, error cases, config surface.
-Dependency direction: who may call what.>
-
-## Data and migrations
-<Schema changes, backfill, backward compatibility window, rollback plan.>
-
-## Implementation steps
-1. <step that is independently verifiable>
-2. <step>
-3. <step>
-
-## Verification
-- <command> -> <expected result>
-- <command> -> <expected result>
-- <manual/observable check> -> <expected result>
-
-## Risks and mitigations
-- <risk> -> <mitigation>
-
-## Open questions
-- <question the user must answer before or during step N>
+Design      <signatures, data shapes, error cases, config surface, dependency direction>
+Data        <schema changes, backfill, back-compat window, rollback>
+Steps       1. <independently verifiable>  2. ...  3. ...
+Verify      <command> -> <expected result>, per gate, plus the observable check
+Risks       <risk> -> <mitigation>
+Questions   <what the user must answer before or during step N>
 ```
 
-## Plan quality bar
+## The bar
 
-A plan is ready when each of these is true:
-
-- **Verifiable goal.** Someone else can tell whether it was achieved without asking you.
-- **Explicit non-goals.** The most common cause of scope creep is an unstated boundary.
-- **Named files.** Not "update the backend" but `src/auth/session.ts`, `src/api/routes/auth.ts`.
-- **Design, not vibes.** The contract is written down: input, output, failure, ownership.
-- **Real verification.** Commands that exist in this project, with the result you expect.
-- **Honest risks.** Name the thing you are least sure about. A plan with no risks is
-  incomplete, not excellent.
-- **No dead alternatives.** Present options, then commit to one with a reason. Do not
-  hand the user a menu with no recommendation.
+Verifiable goal (someone else can tell whether it landed) · explicit non-goals (the real
+cause of scope creep is an unstated boundary) · named files, not "update the backend" ·
+design written as a contract, not a vibe · real commands that exist in this project · risks
+named honestly, since a plan with none is incomplete · options with a recommendation, never
+a bare menu.
 
 ## Plan drift
 
-Reality changes the plan. When it happens:
-
-1. Stop. Do not continue on the old plan while the new assumption loads.
-2. State what changed: the assumption, the evidence, and the impact on scope and risk.
-3. Present the delta, not a full rewrite of the plan.
-4. For T3, wait for re-approval. For T2, state the delta and continue.
+When reality breaks an assumption: stop, state what changed and the evidence, present the
+delta rather than rewriting the plan, and wait for re-approval on T3. Continue on T2 after
+stating the delta. Silent drift is the failure mode this exists to prevent.
 
 ```text
-Plan update: <what changed>
-Impact: <files, risk, timeline>
+Plan update: <what changed and why>
+Impact: <files, risk, effort>
 Revised step N: <old> -> <new>
 Continuing unless you say stop.
 ```
-
-Silent drift is the failure mode this section exists to prevent.
