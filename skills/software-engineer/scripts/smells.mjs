@@ -129,6 +129,10 @@ const SRC_EXT = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", "
 const CONF_EXT = new Set([".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".properties", ".env", ".tfvars"])
 const SECRET_RULES = new Set(["hardcoded-secret", "github-token", "aws-key", "private-key", "bearer-literal", "env-default-secret"])
 const TEST_RE = /(^|\/)(tests?|__tests__|spec)\/|\.(test|spec)\.[a-z]+$|(^|\/)test_[^/]+$|[^/]+_test\.[a-z]+$/
+// A diff line that adds nothing executable: blank, a comment, a docstring, or markup.
+const NON_CODE_LINE = /^\s*(\/\/|\/\*|\*|#\s|--|<!--|<\/?[a-z]|[\w-]+:\s*$)/i
+// Paths that cannot hold behaviour worth a test: prose, markup, lockfiles, CI config.
+const NON_SUBSTANTIVE_PATH = /\.(md|mdx|rst|txt|adoc|lock|log|json|ya?ml|toml)$|(^|\/)(CHANGELOG|CONTRIBUTING|README|LICENSE|CODEOWNERS)(\..*)?$|^\.github\//
 const ext = (p) => extname(p).toLowerCase()
 const isSource = (p) => SRC_EXT.has(ext(p))
 const isConfig = (p) => CONF_EXT.has(ext(p)) || /(^|\/)\.env(\.|$)/.test(p.replace(/\\/g, "/"))
@@ -181,12 +185,65 @@ function selectFiles() {
 
 /* ---------- rules ---------- */
 
+// Count executable lines added by the diff. Used only by `no-test-change`, where the question is
+// "did any behaviour change at all" - which is answerable from added lines without parsing code.
+function addedCodeLines() {
+  const base = diffBase()
+  const from = base || (git("rev-parse", "--verify", "HEAD") ? "HEAD" : null)
+  const args = from ? ["diff", "-U0", "--diff-filter=ACMR"] : ["diff", "--cached", "-U0", "--diff-filter=ACMR"]
+  const r = spawnSync("git", [...args, ...(from ? [from] : [])], { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })
+  if (r.status !== 0) return 1 // cannot tell: assume there is a change rather than reporting nothing
+
+  const added = []
+  const removed = []
+  for (const line of (r.stdout || "").split("\n")) {
+    if (line.startsWith("+++") || line.startsWith("---")) continue
+    if (NON_CODE_LINE.test(line.slice(1))) continue
+    // Whitespace-insensitive: a reformatted line is not a behaviour change, and treating it as
+    // one makes every prettier run look like an untested code change.
+    const key = line.slice(1).replace(/\s+/g, "")
+    if (line.startsWith("+")) added.push(key)
+    else if (line.startsWith("-")) removed.push(key)
+  }
+  const stillThere = added.filter((k) => !removed.includes(k))
+
+  // `git diff` cannot see an untracked file, so a brand-new source file would read as zero added
+  // lines and silently escape the check. Count its content directly.
+  for (const f of git("ls-files", "--others", "--exclude-standard") || []) {
+    if (isTest(f) || !isSource(f)) continue
+    if (NON_SUBSTANTIVE_PATH.test(norm(f))) continue
+    try {
+      const text = readFileSync(resolve(root, f), "utf8")
+      const n = text.split("\n").filter((l) => l.trim() && !NON_CODE_LINE.test(l)).length
+      if (n > 0) return n
+    } catch {
+      return 1
+    }
+  }
+  return stillThere.length
+}
+
+// A value that is obviously not a credential. Scoped to the VALUE side deliberately: it must not
+// match `process.env.SECRET || "..."`, because reading the secret from the environment is the
+// correct pattern and exempting it on the left of the `||` would silence the exact bug the
+// `env-default-secret` rule exists to catch.
+const PLACEHOLDER_VALUE = /(example|sample|dummy|placeholder|changeme|your[_-]?|xxx+|<[^>]+>|redacted|\*\*\*)/i
+
+// Rules whose matches live in prose, so they must keep firing inside comments. Declared once
+// here rather than inline in the scan loop, where a per-rule Set was allocated on every line.
+const IN_COMMENT_OK = new Set(["empty-catch", "deferred", "unknown-works", "debt-marker"])
+
 const E = (id, re, msg, extra) => ({ id, sev: "error", re, msg, ...extra })
 const W = (id, re, msg, extra) => ({ id, sev: "warn", re, msg, ...extra })
 
 // `not` exempts a shape that looks bad but is legitimate in isolation.
 const BUILTIN = [
-  E("debt-marker", /\b(TODO|FIXME|XXX|HACK)\b/, "debt marker left in the tree: needs an owner + tracked issue, or it gets deleted"),
+  // A marker WITH an owner and a tracked reference is managed debt, which the skill explicitly
+  // permits. The exemption matters: if the only way to silence a finding is to delete the
+  // comment, people delete the comment, and the debt becomes invisible rather than owned.
+  E("debt-marker", /\b(TODO|FIXME|XXX|HACK)\b/, "debt marker left in the tree: add an owner and a tracked issue, or it gets deleted", {
+    not: /\b(owner|assignee|assigned to|tracked|follow.?up|ticket|issue|PL-\d|[A-Z]{2,}-\d+|#\d+|https?:\/\/\S+\/(issues|pull)\/\d+)\b/i,
+  }),
   E("unknown-works", /\b(idk|should work|works on my machine|don't touch|do not touch|trust me)\b/i, "unexplained code: comments must say why, or the code goes"),
   E("debugger-stmt", /^\s*debugger\b|^\s*dbg!\s*\(/, "debugger statement committed"),
   E("ts-ignore", /@ts-ignore\b/, "type error suppressed instead of fixed"),
@@ -196,8 +253,8 @@ const BUILTIN = [
 
   // Secrets are checked everywhere, configs included - a key in a YAML file is still a leak.
   // `["']?` after the name handles quoted JSON/YAML keys: `"password": "value"`.
-  E("hardcoded-secret", /(api[_-]?key|apikey|secret|password|passwd|token|private[_-]?key|access[_-]?key)["']?\s*[:=]\s*["'][^"'\s]{8,}["']/i, "possible hardcoded secret: move to env/secret store", { not: /(example|sample|dummy|changeme|your[_-]?|xxx+|<[^>]+>|\$\{)/i }),
-  E("env-default-secret", /(api[_-]?key|secret|password|passwd|token|private[_-]?key)["']?\s*\)?\s*(?:,\s*|\|\|\s*|or\s+)["'][^"'\s]{4,}["']/i, "secret falls back to a hardcoded value: a missing env var silently becomes a known secret", { not: /(example|sample|dummy|changeme|your[_-]?|xxx+|<[^>]+>|\$\{)/i }),
+  E("hardcoded-secret", /(api[_-]?key|apikey|secret|password|passwd|token|private[_-]?key|access[_-]?key)["']?\s*[:=]\s*["'][^"'\s]{8,}["']/i, "possible hardcoded secret: move to env/secret store", { not: new RegExp(`(example|sample|dummy|changeme|your[_-]?|xxx+|<[^>]+>|\\$\\{)|${PLACEHOLDER_VALUE.source}`) }),
+  E("env-default-secret", /(api[_-]?key|secret|password|passwd|token|private[_-]?key)["']?\s*\)?\s*(?:,\s*|\|\|\s*|or\s+)["'][^"'\s]{4,}["']/i, "secret falls back to a hardcoded value: a missing env var silently becomes a known secret", { not: new RegExp(`(example|sample|dummy|changeme|your[_-]?|xxx+|<[^>]+>|\\$\\{)|${PLACEHOLDER_VALUE.source}`) }),
   E("github-token", /\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bsk-[A-Za-z0-9]{20,}\b/, "token committed: rotate it now"),
   E("aws-key", /\bAKIA[0-9A-Z]{16}\b/, "AWS access key id committed"),
   E("private-key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/, "private key committed"),
@@ -250,6 +307,34 @@ const STUB_HEAD = /^\s*(export\s+)?(default\s+)?(async\s+)?function\s+[\w$]+|^\s
 const STUB_RETURN = /^(return\s+(null|undefined|None|\{\}|\[\])|pass|throw\s+new\s+Error\(\s*["'`](?:not implemented|TODO))/i
 const STUB_END = /^[)}\];]?[)}]?$/
 
+// Matching a function's extent needs an indentation rule rather than a regex on one line, since
+// the body's last line is somewhere below the declaration. Blocks are opened by a brace, a
+// colon, or a python `def`, and closed when the indent returns to the opening level. This is
+// approximate on purpose: it counts lines, it does not need to parse.
+function bodyLines(lines, start) {
+  const head = lines[start]
+  const pyLike = /^\s*def\s+\w+/.test(head)
+  const indent = (head.match(/^[ \t]*/) || [""])[0].length
+  const opener = pyLike ? null : head.match(/\{/)
+  let last = start
+  for (let i = start + 1; i < lines.length; i++) {
+    const line = lines[i]
+    if (!line.trim()) continue
+    const ind = (line.match(/^[ \t]*/) || [""])[0].length
+    if (pyLike ? ind <= indent : ind <= indent && !opener) break
+    if (pyLike ? ind <= indent : ind <= indent) break
+    last = i
+    // A hard brace balance is more reliable than indentation inside a single line, so prefer it.
+    if (!pyLike && opener) {
+      const opens = (line.match(/\{/g) || []).length
+      const closes = (line.match(/\}/g) || []).length
+      if (closes > opens && ind <= indent) break
+    }
+    if (i - start > maxFuncLines * 4) break
+  }
+  return last - start
+}
+
 // Lint configs and static-analysis tools hold these patterns as data. Pointing a scanner at
 // its own rule table is noise, not signal.
 const CONFIG_LIKE = /(^|\/)(eslint|biome|ruff|flake8|tsconfig|suppress|lint|scanner|smells|verify)[^/]*$|(config|rc)\.(json|ya?ml|toml|ini)$/i
@@ -277,7 +362,6 @@ const HARNESS = /(^|\/)(tests?\/[\w.-]+\.mjs|tests?\/[\w.-]+\.ts|[\w.-]+\.test\.
 // exemption for test directories, which is where a real leaked secret would sit.
 const SCANNER_HARNESS = /\b(smells|verify)\.mjs\b/
 const COMMENT = /^\s*(\/\/|\/\*|\*|#)/
-const PLACEHOLDER = /(example|sample|dummy|placeholder|changeme|your[_-]?|xxx+|<[^>]+>|process\.env|os\.environ|getenv|redacted|\*\*\*)/i
 
 // Repo-supplied rules go through the same shape and the same exemptions as built-ins, so a
 // custom rule cannot quietly skip the "this is only a warning" or test-file carve-outs.
@@ -347,10 +431,13 @@ function analyze(file, rulesFor) {
     const comment = COMMENT.test(line)
 
     for (const r of rules) {
-      // Warnings are skipped inside comments on purpose - "console.log" in a prose note is not
-      // a finding - but an error is worth reading even there. `native` keeps a re-ranked error
-      // behaving like one, so downgrading a rule cannot delete findings from comments.
-      if (comment && r.native === "warn" && r.id !== "empty-catch") continue
+      // Warnings are skipped inside comments on purpose - "console.log" quoted in a prose note
+      // is not a finding. But a debt marker lives in a comment by definition, so the rules whose
+      // whole job is finding things written in prose are exempt from that skip. Without this, a
+      // file of `// add later` and `// quick fix` reports clean, which is the exact residue the
+      // skill is named for. `native` keeps a re-ranked error behaving like an error, so
+      // downgrading a rule cannot delete its findings from comments.
+      if (comment && r.native === "warn" && !IN_COMMENT_OK.has(r.id)) continue
       if (r.re.test(line) && !(r.not && r.not.test(line))) add(rel, i + 1, r.sev, r.id, r.msg, line)
     }
     if (!isConf && !test && comment && line.trim().length > 12 && CODE_COMMENT.test(line)) {
@@ -378,6 +465,13 @@ function analyze(file, rulesFor) {
       if (STUB_RETURN.test(body) && next !== undefined && STUB_END.test(next)) {
         add(rel, i + 1, test ? "warn" : "error", "stub-function", "function is a stub: implement it, or throw a clear not-implemented error", line)
       }
+    }
+    // Reported on the declaration line so it points at the thing that needs splitting. A long
+    // function is the one size signal that reliably predicts an unreviewable diff, and it was
+    // the one threshold `--max-func-lines` was documented to police but never checked.
+    if (!isConf && STUB_HEAD.test(line) && !test) {
+      const n = bodyLines(lines, i)
+      if (n > maxFuncLines) add(rel, i + 1, "warn", "long-function", `function is ${n} lines (limit ${maxFuncLines}): split at the seams you can name`, line)
     }
   }
 
@@ -407,7 +501,14 @@ for (const f of files) analyze(f, rulesFor)
 
 if (changed || staged) {
   const src = files.filter((f) => !isTest(f)).length
-  if (src > 0 && !files.some((f) => isTest(f))) {
+  // A diff that adds no executable line does not need a test, and the skill says so: a typo or
+  // a comment fix is explicitly exempt in `references/testing-guide.md`. Without this exemption a
+  // legal T1 change trips the warning, and a repo running `maxWarnings: 0` fails a build for
+  // editing a comment - which teaches people to ignore the whole gate.
+  //
+  // The check is on ADDED lines, not on the file type: a .ts file whose diff is three comment
+  // lines has changed no behaviour, while a .ts file with one new statement has.
+  if (src > 0 && !files.some((f) => isTest(f)) && addedCodeLines() > 0) {
     add(SYNTHETIC, 0, "warn", "no-test-change", `${src} source file(s) changed with no test change: is the new behavior covered?`)
   }
 }

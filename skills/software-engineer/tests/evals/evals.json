@@ -1,0 +1,81 @@
+{
+  "_comment": "Each case declares `fixture`: files written into a throwaway repo before the run, so the agent works on real code instead of a prompt that references files that do not exist. Cases must be things a competent model might plausibly get wrong WITHOUT the skill - testing tasks both arms already ace proves nothing.",
+  "evals": [
+    {
+      "eval_id": 0,
+      "eval_name": "uses-the-projects-real-gate",
+      "prompt": "Fix the off-by-one in `src/pages.js` and confirm it's done.",
+      "fixture": {
+        "README.md": "# Demo app\n\nRun `npm start`. Tests: `npm test`.\n",
+        "package.json": "{\n  \"name\": \"demo\",\n  \"scripts\": {\n    \"start\": \"node src/index.js\",\n    \"test\": \"node --test test/\",\n    \"lint\": \"node scripts/lint.js\"\n  }\n}\n",
+        "src/pages.js": "export function paginate(items, page, perPage) {\n  const start = (page - 1) * perPage\n  return items.slice(start, start + perPage)\n}\n",
+        "test/pages.test.js": "import { test } from 'node:test'\nimport assert from 'node:assert'\nimport { paginate } from '../src/pages.js'\n\ntest('page 1 returns the first page', () => {\n  const r = paginate([1,2,3,4,5], 1, 2)\n  assert.deepEqual(r, [1,2])\n})\n",
+        "scripts/lint.js": "console.log('no lint configured yet')\n",
+        ".github/workflows/ci.yml": "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 20\n      - run: npm test\n      - run: npm run lint\n"
+      },
+      "tests": "The repo has a test script, so the agent must run the real gate and quote real output. A model with no skill may plausibly write plausible-looking test output from memory.",
+      "checks": [
+        { "name": "names the project's own test command", "pattern": "npm test|node --test" },
+        { "name": "quotes output in the real TAP/node-test shape", "pattern": "# pass|# fail|tap version|tests \\d+|pass \\d+|not ok|ok 1" },
+        { "name": "does not claim a linter exists that does not", "pattern": "no lint configured|no linter|scripts/lint" }
+      ],
+      "judgement": "If the quoted output could not have come from the named command, this case fails for fabrication regardless of regex."
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "adds-a-test-for-a-new-behaviour",
+      "prompt": "We just added retry-with-backoff to `src/client.js`. Review the change for problems and tell me if it's ready to ship.",
+      "fixture": {
+        "package.json": "{\n  \"name\": \"demo\",\n  \"type\": \"module\",\n  \"scripts\": { \"test\": \"node --test test/\" }\n}\n",
+        "src/client.js": "export async function call(fn, { retries = 3 } = {}) {\n  for (let i = 0; i < retries; i++) {\n    try {\n      return await fn()\n    } catch (e) {\n      if (i === retries - 1) throw e\n    }\n  }\n}\n",
+        "src/api.js": "export async function getOrder(id) {\n  const res = await fetch(`/api/orders/${id}`)\n  return res.json()\n}\n",
+        "test/client.test.js": "import { test } from 'node:test'\nimport assert from 'node:assert'\nimport { call } from '../src/client.js'\n\ntest('retries until success', async () => {\n  let n = 0\n  const r = await call(async () => {\n    n++\n    if (n < 3) throw new Error('boom')\n    return 'ok'\n  })\n  assert.equal(r, 'ok')\n})\n",
+        ".gitignore": "node_modules/\n"
+      },
+      "tests": "The function is named `retry-with-backoff` but has NO backoff - it retries immediately, which under real conditions hammers a failing dependency. The change also has no test for the give-up path. A review must catch at least one of these.",
+      "checks": [
+        { "name": "catches the missing backoff", "pattern": "backoff|hammer|no delay|busy.?loop|tight loop|immediately|jitter|sleep|delay" },
+        { "name": "catches the untested give-up path", "pattern": "give up|exhaust|final attempt|rethrows|throw|last attempt|not tested|no test" },
+        { "name": "flags the retry-amplification risk", "pattern": "amplif|load|outage|cascad|thundering|retry storm|herd" }
+      ],
+      "judgement": "Also check it did not merely say 'looks good'."
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "keeps-a-flag-from-becoming-permanent-debt",
+      "prompt": "Ship the new checkout behind a feature flag so we can turn it on gradually. We can clean it up later.",
+      "fixture": {
+        "package.json": "{\n  \"name\": \"demo\",\n  \"type\": \"module\",\n  \"scripts\": { \"test\": \"node --test test/\" }\n}\n",
+        "src/flags.js": "export const flags = { newCheckout: false }\n",
+        "src/checkout.js": "import { flags } from './flags.js'\n\nexport function checkout(cart) {\n  if (flags.newCheckout) return newCheckoutFlow(cart)\n  return legacyCheckoutFlow(cart)\n}\n\nfunction newCheckoutFlow(cart) { return { total: cart.reduce((s, l) => s + l.price, 0) } }\nfunction legacyCheckoutFlow(cart) { return { total: cart.reduce((s, l) => s + l.price, 0) } }\n",
+        "test/checkout.test.js": "import { test } from 'node:test'\nimport assert from 'node:assert'\nimport { flags } from '../src/flags.js'\nimport { checkout } from '../src/checkout.js'\n\ntest('legacy path by default', () => {\n  assert.equal(flags.newCheckout, false)\n  assert.ok(checkout([{ price: 10 }]))\n})\n",
+        ".github/CODEOWNERS": "* @team-payments\n"
+      },
+      "tests": "'We can clean it up later' is exactly how a flag becomes permanent debt. Good output names the owner, the removal trigger, and the metric that measures progress toward removal - and notes that a module-level constant is not something you can roll back in production without a deploy.",
+      "checks": [
+        { "name": "demands an owner and a removal trigger", "pattern": "owner|remove|delete|cleanup|clean up|expiry|expir|deadline|retire" },
+        { "name": "names what is being measured to justify removal", "pattern": "metric|usage|percent|adoption|traffic|measure|rollout ramp" },
+        { "name": "flags that the flag cannot be toggled in production", "pattern": "deploy|restart|runtime|remote|toggle|without a deploy|cannot" }
+      ],
+      "judgement": "Check it pushed back on 'later' rather than accepting it."
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "does-not-leave-scaffolding-behind",
+      "prompt": "Wire up the new webhook endpoint. There's a stub handler in `src/webhooks.js` that needs implementing.",
+      "fixture": {
+        "package.json": "{\n  \"name\": \"demo\",\n  \"type\": \"module\",\n  \"scripts\": { \"test\": \"node --test test/\" }\n}\n",
+        "src/webhooks.js": "export async function handleWebhook(req) {\n  // TODO: validate signature\n  return { ok: true }\n}\n",
+        "src/server.js": "export function createServer() {\n  return { listen: () => {} }\n}\n",
+        "test/webhooks.test.js": "import { test } from 'node:test'\nimport assert from 'node:assert'\nimport { handleWebhook } from '../src/webhooks.js'\n\ntest('accepts a request', async () => {\n  const r = await handleWebhook({})\n  assert.equal(r.ok, true)\n})\n"
+      },
+      "tests": "The stub returns `{ ok: true }` for any input and the existing test asserts exactly that - so the suite is green while the endpoint accepts forged webhooks. A review must catch that the test locks in the vulnerability rather than the contract, and that the TODO is unowned.",
+      "checks": [
+        { "name": "catches signature verification missing", "pattern": "signature|hmac|verif|forg|tamper|unauthentic" },
+        { "name": "catches that the test asserts the stub, not the contract", "pattern": "test.*(stub|tautolog|asserts.*ok|does not test|meaningless|passes regardless|green)" },
+        { "name": "treats the TODO as owned debt", "pattern": "TODO|owner|issue|track" }
+      ],
+      "judgement": "This is the case the skill exists for: green tests hiding an unverified security claim."
+    }
+  ]
+}

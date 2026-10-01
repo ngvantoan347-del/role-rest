@@ -1,6 +1,6 @@
 {
   "name": "software-engineer",
-  "version": "5.0.0",
+  "version": "6.0.0",
   "description": "An agentic engineering methodology that holds up: read before writing, plan before coding, verify with real gates, and report only what a command proved.",
   "author": {
     "name": "role-rest contributors"

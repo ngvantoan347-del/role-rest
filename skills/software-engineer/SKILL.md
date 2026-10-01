@@ -31,20 +31,28 @@ Skill này là phản-chương trình đó. Nó không thêm quy trình cho vui 
 | Có ngã rẽ thiết kế với chi phí khác nhau | **Hỏi một lần**, kèm khuyến nghị. |
 | Yêu cầu mâu thuẫn với hành vi hiện tại | **Chỉ ra mâu thuẫn**, đề xuất cách hiểu hợp lý nhất. |
 
+**Một ngoại lệ đè lên dòng đầu tiên:** path thuộc đội khác thì hỏi, dù thay đổi nhỏ và đảo ngược
+được. Dòng một nói về *rủi ro kỹ thuật*; dòng này nói về *ai phải gánh hậu quả*. Một sửa đúng
+vẫn làm CI của họ đỏ lúc 2 giờ sáng khi họ đang trực. Chi tiết: `references/enterprise-standards.md`.
+
 Câu hỏi phải có dạng: *<câu hỏi cụ thể> — tôi nghiêng về <lựa chọn> vì <lý do>.* Không phải *"bạn muốn tôi làm gì?"*
 
 ## 0. Cỡi công việc
 
 Tại sao: một quy trình nặng áp lên một sửa lỗi một dòng sẽ bị bỏ qua, và lúc đó bạn đã mất quy trình lẫn niềm tin. Quy trình nặng chỉ có giá trị khi rủi ro đủ lớn để nó đáng đổi.
 
-| Tier | Khi nào | Quy trình |
-| --- | --- | --- |
-| **T1** | typo, sửa một dòng, giá trị config, không có quyết định thiết kế | Sửa, chạy đúng một check, báo cáo. Không cần plan. |
-| **T2** | một feature hoặc bug đi theo pattern có sẵn | Plan 5-7 dòng trong reply, implement, verify, báo cáo. |
-| **T3** | subsystem mới, data model, public interface, refactor xuyên nhiều tầng, repo lạ | Plan đầy đủ có lựa chọn + rủi ro. **Dừng chờ duyệt.** |
-| **T4** | chạm dữ liệu người dùng, tiền, quyền, hạ tầng dùng chung, quyết định kiến trúc | Như T3, cộng: đánh dấu rõ ràng **T4** trong reply, nêu rollback, và tự đọc lại bằng checklist review của người khác. Chờ duyệt. |
+Tier quyết định **cả quy trình lẫn ngân sách kiểm chứng**, nên hai thứ phải đi cùng nhau:
+
+| Tier | Khi nào | Quy trình | Verify |
+| --- | --- | --- | --- |
+| **T1** | typo, sửa một dòng, giá trị config, không có quyết định thiết kế | Sửa, báo cáo. Không cần plan. | Đúng **một** check liên quan tới thay đổi |
+| **T2** | một feature hoặc bug đi theo pattern có sẵn | Plan 5-7 dòng trong reply, implement, báo cáo. | Test cụ thể + typecheck |
+| **T3** | subsystem mới, data model, public interface, refactor xuyên nhiều tầng, repo lạ | Plan đầy đủ có lựa chọn + rủi ro. **Dừng chờ duyệt.** | Tất cả gate, đầy đủ |
+| **T4** | chạm dữ liệu người dùng, tiền, quyền, hạ tầng dùng chung, quyết định kiến trúc | Như T3, cộng: đánh dấu rõ ràng **T4**, nêu blast radius, rollback, team sở hữu, và tự review bằng checklist của người khác. Chờ duyệt. | Tất cả gate + rollback đã được kiểm chứng là chạy được |
 
 Đo theo hậu quả, không theo độ nhỏ của câu request. Sửa một dòng trong luồng auth là T3 — nếu sai, người dùng mất tài khoản.
+
+Cột cuối là điểm dễ hiểu sai nhất. "Verify" ở đây là **những gì đã chạy**, không phải "gate nào tồn tại". T1 không có nghĩa là bỏ qua gate: nó nghĩa là một thay đổi typo không cần full suite 20 phút, và một dòng trong handoff ghi rõ đã chạy gì. Nếu thay đổi của bạn chạm auth, dữ liệu, tiền hay quyền thì nó không phải T1 dù nhỏ đến mấy — hậu quả quyết định tier, không phải kích thước diff.
 
 T4 tồn tại vì trong tập đoàn, một thay đổi đúng về mặt kỹ thuật vẫn có thể sai về mặt
 tổ chức: nó đụng dữ liệu người dùng thật, nó đụng package của đội khác, hoặc nó đặt ra quyết
@@ -109,34 +117,37 @@ Tại sao: "chắc là chạy rồi" là nguồn của mọi bug lọt xuống p
 
 Chạy từ hẹp tới rộng: test cụ thể → typecheck → lint → full suite → build.
 
-Script của skill nằm **cạnh file `SKILL.md` này**, không phải ở đường dẫn tuyệt đối. Lấy
-đường dẫn từ vị trí file bạn đang đọc:
+Script nằm cạnh `SKILL.md` này, nên hãy dùng đường dẫn tương đối. Skill được cài ở
+`.agents/skills/software-engineer/`, `.claude/skills/software-engineer/`, hay cache của
+OpenCode — một đường dẫn tuyệt đối bịa ra chỉ đúng ở máy của người viết skill:
 
 ```bash
-# <skill-base> = thư mục chứa SKILL.md. Đổi lệnh này nếu skill nằm ở chỗ khác.
-SKILL_BASE="$(dirname "$(find . -name SKILL.md -path '*software-engineer*' | head -1)")"
-
-node "$SKILL_BASE/scripts/verify.mjs"                    # tìm và chạy gate thật của dự án
-node "$SKILL_BASE/scripts/verify.mjs" --changed          # chỉ gate của package bị diff chạm
-node "$SKILL_BASE/scripts/smells.mjs" --changed          # quét diff tìm nợ kỹ thuật cơ học
-node "$SKILL_BASE/scripts/smells.mjs" --changed --strict # thêm `any`, non-null assert, dòng dài
+# Chạy từ thư mục chứa SKILL.md. Nếu không, dùng đường dẫn tương đối tới nó.
+node scripts/verify.mjs                     # tìm và chạy gate thật của dự án
+node scripts/verify.mjs --changed           # chỉ gate của package bị diff chạm
+node scripts/smells.mjs --changed           # quét diff tìm nợ kỹ thuật cơ học
+node scripts/smells.mjs --changed --strict  # thêm `any`, non-null assert, dòng dài
 ```
 
-Đừng hardcode một đường dẫn tuyệt đối và mong nó còn đúng: skill được cài vào `.agents/skills/`,
-`.claude/skills/`, hay cache của OpenCode — mỗi nơi một vị trí, và một đường dẫn tuyệt đối
-sai nghĩa là skill hỏng sau khi cài.
+Trong monorepo, `--changed` là bắt buộc: chạy full suite của 200 package để sửa một dòng
+nghĩa là tự tạo lý do bỏ qua verification. Nhưng nó **băng qua mọi package** khi diff chạm
+file thuộc root — lockfile, `package.json`, config chung — vì lúc đó mọi package đều có thể
+hỏng. Đừng ngạc nhiên khi nó không hẹp.
 
-Trong monorepo, `--changed` là bắt buộc: chạy full suite của 200 package để sửa một dòng nghĩa
-là tự tạo lý do bỏ qua verification. Trong CI, dùng `--format json|sarif|github` để kết quả
-lên được đúng chỗ. Chi tiết: `references/ci-integration.md`.
+Trong CI, dùng `--format json|sarif|github` để kết quả lên được đúng chỗ. Toàn bộ flag, key
+config, và bảng exit code: `references/ci-integration.md`.
 
 Khi một finding là thật mà bạn vẫn giữ, suppress **đúng rule đó** và ghi lý do ngay tại dòng đó.
 Một allow không có `-- reason` cũng bị báo, vì suppression không ai giải thích được chính là
 một rule đã bị xóa:
 
 ```ts
-const key = process.env.API_KEY // smells:allow env-default-secret -- platform team owns this, PLAT-4821
+// Dòng PHẢI match rule trước, nếu không allow là vô nghĩa.
+const key = process.env.API_KEY || "fallback" // smells:allow env-default-secret -- platform team owns this, PLAT-4821
 ```
+
+Ghi allow lên một dòng không match là chi phí mà không đổi được gì: bỏ comment đi, dán vào
+chỗ cần thiết thật.
 
 Hai script này là **lưới an toàn**, không phải bộ phận giám định. Chúng bắt được ~20% cái sai (marker, secret, exception bị nuốt, test bị tắt) và **không bắt được** phần còn lại — abstraction sai, logic đúng nhưng ý sai, dữ liệu hỏng khi scale, lỗ hổng đến từ ý định chứ không phải pattern. Phần đó nằm ở mục 6 và trong `references/anti-patterns.md`. Chạy script xanh **không** phải bằng chứng hoàn thành.
 

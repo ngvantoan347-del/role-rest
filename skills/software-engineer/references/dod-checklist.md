@@ -32,7 +32,7 @@ Các mục bỏ qua cũng phải được **báo**, chứ im lặng là dạng t
 
 ## Hygiene
 
-- [ ] `node "$SKILL_BASE/scripts/smells.mjs" --changed` sạch, hoặc phát hiện đã được giải thích.
+- [ ] `node scripts/smells.mjs --changed` sạch, hoặc phát hiện đã được giải thích.
 - [ ] Không còn `TODO`/`FIXME`/`HACK`/`temp`/`quick fix` trong cây.
 - [ ] Không code bị comment, log debug, hay file giàn giáo.
 - [ ] README, docs, ví dụ, `.env.example` đã cập nhật chỗ thay đổi làm sai.

@@ -240,6 +240,77 @@ test("smells: the synthetic finding has no line, and github format survives that
   hasNot(res.out, "file=<changed files>", "must not invent a file path")
 })
 
+
+test("smells: a debt marker with an owner and an issue is not a finding", () => {
+  // The skill permits owned debt. If the only way to clear the finding is to delete the
+  // comment, people delete the comment, and the debt becomes invisible rather than tracked.
+  const r = repo({ "src/a.ts": "// TODO: drop after v2 ships. owner: @platform, issue: PLAT-4821\nexport const x = 1\n" })
+  const got = ids(run(SMELLS, ["--format", "json"], r.dir).out)
+  ok(!got.includes("debt-marker"), "owned marker exempt: " + got.join(","))
+})
+
+test("smells: a bare debt marker still fails", () => {
+  const r = repo({ "src/a.ts": "// TODO: clean this up\nexport const x = 1\n" })
+  ok(ids(run(SMELLS, ["--format", "json"], r.dir).out).includes("debt-marker"), "unowned marker flagged")
+})
+
+test("smells: deferred work in a comment is found, not skipped", () => {
+  // Warnings are skipped inside comments so a prose quote is not a finding - but these markers
+  // live in comments by definition, and the skill is named for this residue.
+  const r = repo({ "src/a.ts": "// add later\nexport const x = 1\n" })
+  ok(ids(run(SMELLS, ["--format", "json"], r.dir).out).includes("deferred"), "deferred marker found in a comment")
+})
+
+test("smells: a debug print quoted in prose is still not a finding", () => {
+  // The exemption for comments must survive the carve-out above, or every reference doc that
+  // mentions console.log becomes a finding in the repo.
+  const r = repo({ "src/a.ts": "// do not use console.log(x) here\nexport const y = 1\n" })
+  const got = ids(run(SMELLS, ["--format", "json"], r.dir).out)
+  ok(!got.includes("debug-leftover"), "prose mention ignored: " + got.join(","))
+})
+
+test("smells: --max-func-lines is enforced, not just parsed", () => {
+  const long = ["function big() {", ...Array.from({ length: 20 }, (_, i) => `  const x${i} = ${i}`), "  return 1", "}"].join("\n")
+  const r = repo({ "src/a.js": long })
+  ok(!ids(run(SMELLS, ["--format", "json", "--max-func-lines", "80"], r.dir).out).includes("long-function"), "under the limit")
+  ok(ids(run(SMELLS, ["--format", "json", "--max-func-lines", "5"], r.dir).out).includes("long-function"), "over the limit")
+})
+
+test("smells: a short function next to a long one is not flagged", () => {
+  const body = ["function small() {", "  return 1", "}", "function huge() {", ...Array.from({ length: 20 }, (_, i) => `  const x${i} = ${i}`), "  return 1", "}"].join("\n")
+  const f = findings(run(SMELLS, ["--format", "json", "--max-func-lines", "5"], repo({ "src/a.js": body }).dir).out)
+  eq(f.filter((x) => x.id === "long-function").length, 1, "only the long one")
+  eq(f.find((x) => x.id === "long-function").line, 4, "reported at the long declaration")
+})
+
+test("smells: a secret read from env with no default is not env-default-secret", () => {
+  const r = repo({ "src/a.ts": "const key = process.env.API_KEY\n" })
+  const got = ids(run(SMELLS, ["--format", "json"], r.dir).out)
+  ok(!got.includes("env-default-secret"), "no fallback means no finding: " + got.join(","))
+})
+
+
+test("smells: a comment-only or reformat-only diff does not demand a test", () => {
+  // `testing-guide.md` exempts typos and comment changes from needing a test. Without that, a
+  // legal T1 change trips the warning, and a repo running `maxWarnings: 0` fails its build for
+  // editing a comment - which is how a gate gets disabled by the team it was meant to help.
+  for (const [label, body] of [
+    ["comment added", "// a note\nexport const a = 1\n"],
+    ["reformat", "export const a=1\n"],
+  ]) {
+    const r = repo({ "src/a.ts": "export const a = 1\n" })
+    r.write("src/a.ts", body)
+    const got = ids(run(SMELLS, ["--format", "json", "--changed"], r.dir).out)
+    ok(!got.includes("no-test-change"), `${label}: no test demanded - ${got.join(",")}`)
+  }
+})
+
+test("smells: a real behaviour change still demands a test", () => {
+  const r = repo({ "src/a.ts": "export const a = 1\n" })
+  r.write("src/a.ts", "export const a = 2\nexport const b = 3\n")
+  ok(ids(run(SMELLS, ["--format", "json", "--changed"], r.dir).out).includes("no-test-change"), "new statement flagged")
+})
+
 /* ---------- run ---------- */
 
 const cleanupAndRun = async () => {

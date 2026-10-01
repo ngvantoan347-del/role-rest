@@ -199,6 +199,63 @@ test("verify: the timeout also kills the gate's children, not just the runner", 
   ok(elapsed < 20000, `returned promptly, took ${elapsed}ms: an orphan child is holding the pipe open`)
 })
 
+
+test("verify: full mode runs every workspace unit, not just the root", () => {
+  // ci-integration.md makes a full run the second layer that catches packages the affected
+  // mapping skipped. It only ever ran the root, so the layer reported green having tested
+  // one package out of all of them.
+  const r = repo({
+    "package.json": JSON.stringify({ name: "root", workspaces: ["packages/*"], scripts: { test: "exit 0" } }),
+    "packages/a/package.json": JSON.stringify({ name: "pkg-a", scripts: { test: "exit 0" } }),
+    "packages/b/package.json": JSON.stringify({ name: "pkg-b", scripts: { test: "exit 0" } }),
+  })
+  const pkgs = new Set(JSON.parse(run(VERIFY, ["--dry-run", "--format", "json"], r.dir).out).results.map((x) => x.pkg))
+  ok(pkgs.has("pkg-a") && pkgs.has("pkg-b"), "both packages scheduled: " + [...pkgs].join(","))
+})
+
+test("verify: a full run still works when the root has no scripts", () => {
+  const r = repo({
+    "package.json": JSON.stringify({ name: "root", workspaces: ["packages/*"] }),
+    "packages/a/package.json": JSON.stringify({ name: "pkg-a", scripts: { test: "exit 0" } }),
+  })
+  const pkgs = new Set(JSON.parse(run(VERIFY, ["--dry-run", "--format", "json"], r.dir).out).results.map((x) => x.pkg))
+  ok(pkgs.has("pkg-a"), "package gates found without a root script")
+})
+
+test("verify: a diff with no gates reports it in every format and never stack-traces", () => {
+  // The empty-plan path used to call emit() before its reporting state existed, so a
+  // docs-only PR in a monorepo turned a required check red with a ReferenceError.
+  for (const fmt of ["text", "json", "sarif", "github"]) {
+    const r = repo({
+      "package.json": JSON.stringify({ name: "root", workspaces: ["packages/*"] }),
+      "packages/a/package.json": JSON.stringify({ name: "pkg-a" }),
+      "packages/a/f.txt": "x\n",
+      "README.md": "# docs\n",
+    })
+    r.write("packages/a/f.txt", "y\n")
+    const res = run(VERIFY, ["--changed", "--format", fmt], r.dir)
+    ok(!/ReferenceError|Cannot access/.test(res.err + res.out), `${fmt}: no crash, got ${res.err.slice(0, 120)}`)
+    if (fmt === "json") {
+      eq(JSON.parse(res.out).note !== undefined, true, "json says the dimension is unverified")
+    }
+  }
+})
+
+test("verify: an unreadable --config is exit 3, not 2", () => {
+  // ci-integration.md publishes an exit-code table that pipelines copy verbatim. verify uses 3
+  // for configuration errors while smells uses 2, and the table must say which is which.
+  const r = repo({ "package.json": JSON.stringify({ name: "x", scripts: { test: "exit 0" } }) })
+  eq(run(VERIFY, ["--config", "/nope.json"], r.dir).code, 3, "bad config is a usage error")
+})
+
+test("verify: --config is documented as taking precedence over detection", () => {
+  const r = repo({
+    "package.json": JSON.stringify({ name: "x", scripts: { test: "exit 1" } }),
+    ".software-engineer.json": JSON.stringify({ verify: { gates: { test: ["node", "-e", "process.exit(0)"] } } }),
+  })
+  eq(run(VERIFY, ["--only", "test"], r.dir).code, 0, "repo config overrides the detected script")
+})
+
 /* ---------- run ---------- */
 
 const cleanupAndRun = async () => {

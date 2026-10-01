@@ -2,7 +2,7 @@
   "skills": [
     {
       "name": "software-engineer",
-      "version": "5",
+      "version": "6",
       "files": [
         "software-engineer/SKILL.md",
         "software-engineer/references/anti-patterns.md",
@@ -22,6 +22,8 @@
         "software-engineer/scripts/smells.mjs",
         "software-engineer/scripts/verify.mjs",
         "software-engineer/tests/catalog.mjs",
+        "software-engineer/tests/eval.mjs",
+        "software-engineer/tests/evals/evals.json",
         "software-engineer/tests/harness.mjs",
         "software-engineer/tests/run.mjs",
         "software-engineer/tests/smells.test.mjs",

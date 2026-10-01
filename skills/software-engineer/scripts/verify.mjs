@@ -392,13 +392,30 @@ if (changedOnly && units.length) {
     pushPlan(u?.name || dir, dir, applyOverrides(detect(dir)))
   }
   if (!plan.length) {
-    if (format === "text") console.log(dim("  no unit has gates to run for this diff (docs or config-only change).\n"))
-    emit([], [])
+    // Emptied before anything below is initialised, so this path cannot call emit(): the
+    // reporting block reads `streamed`/`done`, which do not exist yet. A docs-only diff is the
+    // common case in a monorepo, and a required check that stack-traces on it is worse than no
+    // check at all. Report it here and stop.
+    if (format === "text") {
+      console.log(dim("\n  no unit has gates to run for this diff (docs or config-only change).\n"))
+      console.log(dim("  Nothing was verified. If that is not what you expected, the gate for this\n  package is unconfigured - say so in the handoff rather than calling it a pass.\n"))
+    } else if (format === "json") {
+      console.log(JSON.stringify({ root, base: resolveBase(), summary: { pass: 0, fail: 0, missing: 0, total: 0 }, results: [], note: "no unit in this diff has a gate; this is not a pass" }, null, 2))
+    } else if (format === "github") {
+      console.log("0 failed, 0 passed: no unit in this diff has a configured gate")
+    } else if (format === "sarif") {
+      console.log(sarifEmpty("No unit in this diff has a configured gate. Nothing was verified."))
+    }
     process.exit(0)
   }
 } else {
+  // Full mode means the whole workspace, not just the root. `ci-integration.md` makes a full
+  // nightly run the second layer that catches packages the affected-graph mapping skipped, and
+  // that layer silently did nothing until this was fixed: it ran only the root's gates and
+  // reported green.
   pushPlan("(root)", "", applyOverrides(detect("")))
-  if (format === "text") console.log(bold(`\nverify  ${dim(root)}${units.length ? dim(`  (${units.length} workspace unit(s); use --changed to scope)`) : ""}\n`))
+  for (const u of units) pushPlan(u.name, u.dir, applyOverrides(detect(u.dir)))
+  if (format === "text") console.log(bold(`\nverify  ${dim(root)}${units.length ? dim(`  (root + ${units.length} workspace unit(s))`) : ""}\n`))
 }
 
 if (!plan.some((p) => Object.keys(p.gates).length)) {
@@ -416,8 +433,9 @@ if (!plan.some((p) => Object.keys(p.gates).length)) {
         2
       )
     )
-  } else if (format === "sarif") console.log(sarif([]))
-  else {
+  } else if (format === "sarif") {
+    console.log(sarifEmpty("No gates could be detected in this project. Nothing was verified."))
+  } else {
     console.log(yellow("No gates could be detected in this project."))
     console.log(dim("Run the real commands from package.json / Makefile / CI config by hand, and report the output.\n"))
   }
@@ -425,6 +443,27 @@ if (!plan.some((p) => Object.keys(p.gates).length)) {
 }
 
 /* ---------- run ---------- */
+
+// Hoisted out of the reporting block because the empty-plan path needs it too: a function
+// declaration is hoisted, so defining it here keeps one copy of the SARIF shape instead of
+// two that can drift.
+function sarifEmpty(note) {
+  return JSON.stringify(
+    {
+      $schema: "https://json.schemastore.org/sarif-2.1.0.json",
+      version: "2.1.0",
+      runs: [
+        {
+          tool: { driver: { name: "software-engineer/verify", informationUri: "https://github.com/ngvantoan347-del/role-rest", rules: [] } },
+          results: [],
+          invocations: [{ executionSuccessful: true, toolExecutionNotifications: [{ level: "note", message: { text: note } }] }],
+        },
+      ],
+    },
+    null,
+    2
+  )
+}
 
 // Everything to execute, flattened. Each entry carries enough context to be reported on its
 // own line, because in a monorepo "test passed" is meaningless without the package it ran in.
