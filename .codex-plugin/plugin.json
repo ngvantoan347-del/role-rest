@@ -1,0 +1,25 @@
+{
+  "name": "software-engineer",
+  "version": "5.0.0",
+  "description": "An agentic engineering methodology that holds up: read before writing, plan before coding, verify with real gates, and report only what a command proved.",
+  "author": {
+    "name": "role-rest contributors"
+  },
+  "homepage": "https://github.com/ngvantoan347-del/role-rest",
+  "repository": "https://github.com/ngvantoan347-del/role-rest",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "planning",
+    "code-review",
+    "monorepo",
+    "testing",
+    "workflow"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Software Engineer",
+    "shortDescription": "Engineering discipline for AI coding agents, scoped to real repositories",
+    "longDescription": "Enforces read-before-write, a written plan, explicit design contracts, small verified increments, tests that assert behavior, live docs, and evidence-backed reporting. Covers monorepos, distributed and multi-tenant systems, legacy migration, compliance and data handling, and code review."
+  }
+}

@@ -43,6 +43,20 @@ Risks       <rủi ro> -> <giảm thiểu>
 Questions   <cái người dùng phải trả lời trước hoặc trong bước N>
 ```
 
+## T4 — thay đổi có blast radius ra ngoài dự án
+
+Giống T3, thêm hai dòng bắt buộc. Chúng tồn tại vì đây là loại thay đổi mà người kế tiếp
+không thể tự suy ra được nếu bạn không viết ra.
+
+```text
+Blast radius  - ai khác đang chạy cái này: tên service, package, endpoint, bảng dữ liệu
+Rollback      - cụ thể: revert commit, tắt flag, hay cần viết data ngược; và mất bao lâu
+Owner         - đội/người phải được thông báo trước khi deploy
+```
+
+Nếu không có đường rollback đơn giản, đó là thông tin phải nêu ở T3 plan, không phải để
+cuối handoff.
+
 ## Chất lượng
 
 Mục tiêu verify được (người khác tự biết đã đạt chưa mà không phải hỏi bạn) · **non-goals

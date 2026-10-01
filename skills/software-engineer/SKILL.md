@@ -1,7 +1,12 @@
 ---
-name: Software Engineer
-description: Engineering discipline for building, changing, and shipping real software instead of vibe-coded guesswork. Use for any task that ends with changed source files - feature work, bug fixes, refactors, integrations, migrations - and for self-review before handoff. Enforces read-before-write, a written plan, explicit design contracts, small verified increments, tests, docs, and evidence-backed reporting.
-slash: true
+name: software-engineer
+description: Engineering discipline for building, changing, and shipping real software instead of vibe-coded guesswork. Use for any task that ends with changed source files - feature work, bug fixes, refactors, integrations, migrations - and for self-review before handoff. Enforces read-before-write, a written plan, explicit design contracts, small verified increments, tests, docs, and evidence-backed reporting. Covers monorepos, distributed and multi-tenant systems, compliance and data handling, legacy migration, and code review, so it holds up in a large engineering organisation.
+license: MIT
+compatibility: opencode, claude-code, codex, cursor, gemini-cli
+metadata:
+  audience: engineers
+  workflow: any
+  category: methodology
 ---
 
 # Software Engineer
@@ -37,20 +42,28 @@ Tại sao: một quy trình nặng áp lên một sửa lỗi một dòng sẽ b
 | **T1** | typo, sửa một dòng, giá trị config, không có quyết định thiết kế | Sửa, chạy đúng một check, báo cáo. Không cần plan. |
 | **T2** | một feature hoặc bug đi theo pattern có sẵn | Plan 5-7 dòng trong reply, implement, verify, báo cáo. |
 | **T3** | subsystem mới, data model, public interface, refactor xuyên nhiều tầng, repo lạ | Plan đầy đủ có lựa chọn + rủi ro. **Dừng chờ duyệt.** |
+| **T4** | chạm dữ liệu người dùng, tiền, quyền, hạ tầng dùng chung, quyết định kiến trúc | Như T3, cộng: đánh dấu rõ ràng **T4** trong reply, nêu rollback, và tự đọc lại bằng checklist review của người khác. Chờ duyệt. |
 
 Đo theo hậu quả, không theo độ nhỏ của câu request. Sửa một dòng trong luồng auth là T3 — nếu sai, người dùng mất tài khoản.
+
+T4 tồn tại vì trong tập đoàn, một thay đổi đúng về mặt kỹ thuật vẫn có thể sai về mặt
+tổ chức: nó đụng dữ liệu người dùng thật, nó đụng package của đội khác, hoặc nó đặt ra quyết
+định mà ba tháng sau không ai nhớ là ai đã chọn gì. Phần chi tiết của từng miền nằm ở
+`references/compliance-and-data.md`, `references/enterprise-standards.md`, và
+`references/scale-and-architecture.md`.
 
 ## 1. Đọc trước khi viết
 
 Tại sao: nguyên nhân gốc của phần lớn code hỏng là AI đoán quy ước thay vì đọc. Đoán trong một repo có convention rõ ràng là lãng phí — convention đó nằm ngay đó, miễn phí.
 
 - Tìm entry point, **lệnh gate thật** (CI config là nguồn sự thật, không phải README), và module sở hữu hành vi cần sửa.
-- soi ví dụ gần nhất của thứ bạn định thêm, rồi làm theo. Không sáng tạo style khi đã có sẵn.
+- Trong repo nhiều người dùng: đọc `CODEOWNERS` trước khi viết. Sửa code của đội khác thì việc đúng là hỏi họ, không phải sửa rồi để CI của họ đỏ.
+- Soi ví dụ gần nhất của thứ bạn định thêm, rồi làm theo. Không sáng tạo style khi đã có sẵn.
 - Khi code trông sai, hỏi lịch sử trước: `git log` / `git blame`. Code kỳ quặc thường là chủ ý — một bug vendor, một ca sửa timezone tại chỗ. Xóa nó là gây lại lỗi cũ.
 - Trích dẫn sự thật theo `path:line`. Không có nguồn = giả thuyết, và phải gọi tên nó là giả thuyết.
 - **Đừng đọc để thấy thú.** Dừng khi bạn đã đủ để gọi tên file sẽ sửa và lệnh sẽ chứng minh. Đọc thêm là trì hoãn, không phải cẩn trọng.
 
-Chi tiết và trình tự khám phá: `references/discovery-playbook.md`.
+Chi tiết và trình tự khám phá: `references/discovery-playbook.md`. Chuẩn của công ty, CODEOWNERS, ADR/RFC: `references/enterprise-standards.md`.
 
 ## 2. Plan, rồi mới làm
 
@@ -76,7 +89,7 @@ Tại sao: phần khó sửa nhất của một hệ thống không phải logic
 - Secrets từ env. Config cũng là hợp đồng.
 - **Đừng over-engineer.** Thiết kế cho thay đổi tiếp theo có khả năng xảy ra, không cho thay đổi tưởng tượng.
 
-Chi tiết: `references/design-guide.md`.
+Chi tiết: `references/design-guide.md`. Vượt ra ngoài một process — monorepo, service, event, multi-tenant, concurrency, rollout: `references/scale-and-architecture.md`. Đổi schema và code cũ chạy song song: `references/migration-and-legacy.md`. Dữ liệu người dùng, quyền, audit, supply chain: `references/compliance-and-data.md`.
 
 ## 4. Implement theo từng bước kiểm chứng được
 
@@ -96,9 +109,33 @@ Tại sao: "chắc là chạy rồi" là nguồn của mọi bug lọt xuống p
 
 Chạy từ hẹp tới rộng: test cụ thể → typecheck → lint → full suite → build.
 
+Script của skill nằm **cạnh file `SKILL.md` này**, không phải ở đường dẫn tuyệt đối. Lấy
+đường dẫn từ vị trí file bạn đang đọc:
+
 ```bash
-node <skill-base>/scripts/verify.mjs                 # tìm và chạy gate thật của dự án
-node <skill-base>/scripts/smells.mjs --changed      # quét diff tìm nợ kỹ thuật cơ học
+# <skill-base> = thư mục chứa SKILL.md. Đổi lệnh này nếu skill nằm ở chỗ khác.
+SKILL_BASE="$(dirname "$(find . -name SKILL.md -path '*software-engineer*' | head -1)")"
+
+node "$SKILL_BASE/scripts/verify.mjs"                    # tìm và chạy gate thật của dự án
+node "$SKILL_BASE/scripts/verify.mjs" --changed          # chỉ gate của package bị diff chạm
+node "$SKILL_BASE/scripts/smells.mjs" --changed          # quét diff tìm nợ kỹ thuật cơ học
+node "$SKILL_BASE/scripts/smells.mjs" --changed --strict # thêm `any`, non-null assert, dòng dài
+```
+
+Đừng hardcode một đường dẫn tuyệt đối và mong nó còn đúng: skill được cài vào `.agents/skills/`,
+`.claude/skills/`, hay cache của OpenCode — mỗi nơi một vị trí, và một đường dẫn tuyệt đối
+sai nghĩa là skill hỏng sau khi cài.
+
+Trong monorepo, `--changed` là bắt buộc: chạy full suite của 200 package để sửa một dòng nghĩa
+là tự tạo lý do bỏ qua verification. Trong CI, dùng `--format json|sarif|github` để kết quả
+lên được đúng chỗ. Chi tiết: `references/ci-integration.md`.
+
+Khi một finding là thật mà bạn vẫn giữ, suppress **đúng rule đó** và ghi lý do ngay tại dòng đó.
+Một allow không có `-- reason` cũng bị báo, vì suppression không ai giải thích được chính là
+một rule đã bị xóa:
+
+```ts
+const key = process.env.API_KEY // smells:allow env-default-secret -- platform team owns this, PLAT-4821
 ```
 
 Hai script này là **lưới an toàn**, không phải bộ phận giám định. Chúng bắt được ~20% cái sai (marker, secret, exception bị nuốt, test bị tắt) và **không bắt được** phần còn lại — abstraction sai, logic đúng nhưng ý sai, dữ liệu hỏng khi scale, lỗ hổng đến từ ý định chứ không phải pattern. Phần đó nằm ở mục 6 và trong `references/anti-patterns.md`. Chạy script xanh **không** phải bằng chứng hoàn thành.
@@ -107,7 +144,7 @@ Báo cáo lệnh đã chạy và đúng những gì nó in ra, kể cả lỗi. 
 
 ## 6. Thứ không công cụ nào bắt được
 
-Đây là phần quan trọng nhất. Mọi script chỉ so khớp chuỗi; lỗi nguy hiểm nhất thì không có chuỗi nào để so. Chúng được tìm ra bằng cách **đọc và suy luận**:
+Đây là phần quan trọng nhất. Mọi script chỉ so khớp chuỗi; lỗi nguy hiểm nhất thì không có chuỗi nào để so. Chúng được tìm ra bằng cách **đọc và suy luận**. Bảng dưới là các lỗi phổ biến nhất trong một repo; mỗi miền có bảng riêng, đầy đủ hơn:
 
 | Lỗi | Vì sao script không thấy | Cách phát hiện |
 | --- | --- | --- |
@@ -119,8 +156,10 @@ Báo cáo lệnh đã chạy và đúng những gì nó in ra, kể cả lỗi. 
 | **Hỏng khi chạy thật** | Dev máy 8 nhân, production 2 nhân | Hỏi: cấu hình ở đây có đúng như production không? |
 | **Lỗ hổng từ ý định** | Regex secret không thấy "endpoint này leak PII của user khác" | So quyền: mọi boundary có authN + authZ? Dữ liệu trả về có đúng mức cần? |
 | **Drift giữa docs và code** | Cả hai đều "chạy" | Sau mỗi thay đổi: cái gì trong docs giờ sai? |
+| **Hỏng khi có người thứ hai** | Đúng với một người, sai khi đồng thời có người khác sửa | Ai đang sở hữu path này? Ai review được? |
+| **Rò dữ liệu chéo tenant** | Không có pattern nội bộ nào lộ ra | Mọi query, cache key, log có tenant id không? |
 
-Nguyên tắc chẩn đoán: **mọi thứ mà câu hỏi "làm sao tôi biết nó đúng?" không trả lời bằng một lệnh, đều cần đọc thêm.** Đừng dừng lại ở chỗ script xanh.
+Nguyên tắc chẩn đoán: **mọi thứ mà câu hỏi "làm sao tôi biết nó đúng?" không trả lời bằng một lệnh, đều cần đọc thêm.** Đừng dừng lại ở chỗ script xanh. Bản checklist mở rộng theo từng miền: `references/scale-and-architecture.md`, `references/compliance-and-data.md`.
 
 ## 7. Non-negotiables
 
@@ -136,6 +175,8 @@ Mỗi dòng ở đây có một câu chuyện đằng sau; đọc cột phải t
 | Không đổi scope lặng lẽ, không rename đột ngột | Bất ngờ là phần đắt nhất, không phải phần kỹ thuật. |
 | Không secret, không dữ liệu thật — kể cả trong log và fixture | Lọt rồi là không hoàn tác được. |
 | Không god file, không vi phạm layer, không import cycle | Spaghetti không được cứu bởi việc nó chạy. |
+| Không thay đổi dữ liệu, quyền, tiền, hay config dùng chung mà không nói rollback | Ở quy mô lớn, thay đổi đó không chỉ là của bạn — nó là của hàng trăm người đang dùng hệ thống. |
+| Không tự sửa code của đội khác, không sửa CODEOWNERS để lách review | Đội sở hữu một path là đội trực on-call của nó. Bạn lách review là bạn gánh hậu quả cho họ. |
 
 ## 8. Bug
 
@@ -157,7 +198,9 @@ Vì sao docs sai còn nguy hiểm hơn docs thiếu: nó làm người mới tin
 
 ## 11. Bàn giao
 
-Đọc lại diff của chính mình như đang review PR của người khác, rồi chạy `references/dod-checklist.md`. Ô nào chưa tick thì hoặc sửa, hoặc báo.
+Đọc lại diff của chính mình như đang review PR của người khác — theo
+`references/review-playbook.md`, không phải theo cảm giác — rồi chạy
+`references/dod-checklist.md`. Ô nào chưa tick thì hoặc sửa, hoặc báo.
 
 ```text
 What changed      - mô tả behavior, không phải liệt kê file
@@ -176,13 +219,22 @@ Thẳng, cụ thể, không tán tỉnh. Sự thật kèm nguồn. Tách rõ cá
 
 ## Bản đồ tham chiếu
 
+Đọc theo tình huống, không đọc hết. Mỗi file có điều kiện lọc riêng; đọc sai file tốn thời
+gian hơn là không đọc.
+
 | File | Dùng khi |
 | --- | --- |
-| `references/discovery-playbook.md` | Đọc repo lạ: thứ tự khám phá, tìm seam, evidence table |
+| `references/discovery-playbook.md` | Repo lạ: thứ tự khám phá, tìm seam, evidence table |
+| `references/enterprise-standards.md` | Repo nhiều người dùng: CODEOWNERS, chuẩn công ty, ADR/RFC, branch protection, release train |
 | `references/stack-commands.md` | Lệnh gate thật theo từng ecosystem |
-| `references/plan-template.md` | Mẫu plan T2/T3, xử lý plan drift |
+| `references/ci-integration.md` | Cắm script vào pipeline, đọc exit code, config dùng chung cho repo |
+| `references/plan-template.md` | Mẫu plan T2/T3/T4, xử lý plan drift |
 | `references/design-guide.md` | Boundary, contract, data, migration, security |
+| `references/scale-and-architecture.md` | Monorepo, service, event, multi-tenant, concurrency, rollout/rollback |
+| `references/migration-and-legacy.md` | Code cũ không test, strangler fig, expand-contract, migration dữ liệu, API versioning |
+| `references/compliance-and-data.md` | PII, phân quyền, audit trail, retention, SBOM, provenance, change control |
 | `references/testing-guide.md` | Test cái gì, test double, CI gate, suite đỏ |
 | `references/anti-patterns.md` | Smell cần phán đoán — thứ regex không bắt được |
 | `references/git-workflow.md` | Commit, branch, PR, secret, khôi phục history |
+| `references/review-playbook.md` | Review của người khác và tự review trước khi bàn giao |
 | `references/dod-checklist.md` | Definition of Done + mẫu bàn giao |

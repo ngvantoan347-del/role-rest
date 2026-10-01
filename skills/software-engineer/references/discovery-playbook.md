@@ -24,6 +24,7 @@ Chạy theo thứ tự, dừng khi đã đủ để gọi tên file và lệnh c
 | 1. Hình dạng | `ls`, `tree -L 2`, `git ls-files \| head -100` | Layout, monorepo hay đơn |
 | 2. Manifest | `package.json` / `pyproject.toml` / `go.mod` / `Cargo.toml` | Ngôn ngữ, framework, entry point |
 | 3. **CI config** | `.github/workflows/*.yml`, `.gitlab-ci.yml` | **Lệnh lint/typecheck/test/build chuẩn** |
+| 3b. **Ai sở hữu** | `CODEOWNERS`, `.github/CODEOWNERS` | Path này thuộc đội nào — quyết định bạn có cần hỏi trước khi sửa |
 | 4. Entry point | `src/main.*`, `cmd/`, `server.ts` | Hệ thống khởi động thế nào |
 | 5. Seam | tìm symbol / route / config key cần đổi | Module sở hữu behavior |
 | 6. Ví dụ gần nhất | code đang làm việc tương tự | Pattern phải theo |
@@ -34,6 +35,25 @@ Chạy theo thứ tự, dừng khi đã đủ để gọi tên file và lệnh c
 Bước 3 là bước quan trọng nhất và thường bị bỏ qua. **CI config là nguồn sự thật** về
 "xanh" nghĩa là gì. README nói "chạy `npm test`" còn CI chạy `npm run test:ci && npm run
 lint` với coverage threshold — đó là hai định nghĩa khác nhau về việc xong.
+
+Trong monorepo, CI config còn nói cho bạn biết **gate được scope thế nào**: affected-only
+hay toàn repo. Nếu pipeline chạy affected, thì verify cục bộ của bạn cũng phải scope theo —
+chạy full suite ở máy là thứ mà không ai làm vì nó quá chậm, và sự khác biệt đó là lý do
+CI xanh còn máy bạn thì không bao giờ xanh.
+
+## 1b. Trong repo nhiều người dùng
+
+Bước này không tồn tại ở project một người, và thiếu nó là nguyên nhân của việc sửa code
+của đội khác rồi tạo cho họ một PR đỏ mà không hiểu tại sao.
+
+- `CODEOWNERS` ở `.github/CODEOWNERS` hoặc root: path này thuộc ai. Sửa nó khi chưa hỏi là
+  vi phạm, không phải là tiện lợi.
+- Chỗ lưu quyết định kiến trúc: `docs/adr/`, `docs/rfc/`, hoặc `ARCHITECTURE.md`. Đọc trước
+  khi đề xuất thứ mâu thuẫn với chúng.
+- `CONTRIBUTING.md`, `.editorconfig`, config linter/format: quy ước của repo.
+- `CHANGELOG.md` và tài liệu release: cho biết thay đổi nào từng được coi là đáng ghi.
+
+Chi tiết về cách làm việc trong bối cảnh đó: `references/enterprise-standards.md`.
 
 ## 2. Tìm seam
 

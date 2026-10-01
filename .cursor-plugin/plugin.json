@@ -1,0 +1,21 @@
+{
+  "name": "software-engineer",
+  "displayName": "Software Engineer",
+  "description": "Engineering discipline for AI coding agents: evidence over vibes, real project gates, and scope that reaches monorepos, distributed systems, and compliance",
+  "version": "5.0.0",
+  "author": {
+    "name": "role-rest contributors"
+  },
+  "homepage": "https://github.com/ngvantoan347-del/role-rest",
+  "repository": "https://github.com/ngvantoan347-del/role-rest",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "software-engineering",
+    "code-review",
+    "monorepo",
+    "best-practices",
+    "workflows"
+  ],
+  "skills": "./skills/"
+}

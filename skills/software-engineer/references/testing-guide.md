@@ -85,7 +85,8 @@ Suite xanh bằng cách nới test là một lời nói dối, và lời nói d�
 ## Chạy gate
 
 Từ hẹp tới rộng — test cụ thể, typecheck, lint, full suite, build — rồi
-`node <skill-base>/scripts/smells.mjs --changed`.
+`node "$SKILL_BASE/scripts/smells.mjs" --changed`. `SKILL_BASE` là thư mục chứa `SKILL.md`;
+mục 5 của `SKILL.md` nói cách lấy nó.
 
 Suite chưa chạy là một claim chưa verify, và claim chưa verify không phải output chấp
 nhận được.

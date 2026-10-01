@@ -32,7 +32,7 @@ Các mục bỏ qua cũng phải được **báo**, chứ im lặng là dạng t
 
 ## Hygiene
 
-- [ ] `node <skill-base>/scripts/smells.mjs --changed` sạch, hoặc phát hiện đã được giải thích.
+- [ ] `node "$SKILL_BASE/scripts/smells.mjs" --changed` sạch, hoặc phát hiện đã được giải thích.
 - [ ] Không còn `TODO`/`FIXME`/`HACK`/`temp`/`quick fix` trong cây.
 - [ ] Không code bị comment, log debug, hay file giàn giáo.
 - [ ] README, docs, ví dụ, `.env.example` đã cập nhật chỗ thay đổi làm sai.
@@ -48,6 +48,20 @@ judgment ở `references/anti-patterns.md`. Xanh script **không** phải là xo
 - [ ] Input validated ở boundary; query parameterized; output escaped.
 - [ ] Auth và authorization được kiểm ở đường mới.
 - [ ] Migration additive, reversible, an toàn với traffic đang chạy.
+- [ ] Tenant id có trong **mọi** query, cache key, và log — không chỉ endpoint chính.
+- [ ] Dependency mới: lockfile cập nhật, licence tương thích, audit không có high severity.
+
+## Quy mô và tổ chức
+
+Chỉ tick những mục thật sự liên quan; phần còn lại để trống có chủ đích hơn là tick mù.
+
+- [ ] Nghĩ ở N: N+1 query, pagination, connection, queue, cache đều có giới hạn.
+- [ ] Nghĩ ở đồng thời: hai request cùng lúc, retry, idempotency key, transaction.
+- [ ] Blast radius đã nêu: ai khác đang chạy cái này, và ai phải được thông báo.
+- [ ] Rollback nêu cụ thể, không phải "revert commit" khi nó cần viết data ngược.
+- [ ] Feature flag nếu có: có chủ, có mốc gỡ.
+- [ ] Path này thuộc đội khác: đã hỏi hoặc đã thông báo.
+- [ ] Trong monorepo: gate đã chạy cho package bị ảnh hưởng, không chỉ package sửa.
 
 ## Bàn giao
 

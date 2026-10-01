@@ -1,0 +1,28 @@
+{
+  "name": "role-rest",
+  "private": true,
+  "type": "module",
+  "description": "An engineering discipline skill for AI coding agents: evidence over vibes, real gates, monorepo and enterprise scope.",
+  "keywords": [
+    "agent-skills",
+    "opencode",
+    "claude-code",
+    "codex",
+    "cursor",
+    "skills",
+    "software-engineering",
+    "code-review",
+    "monorepo"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "test": "node skills/software-engineer/tests/run.mjs",
+    "spec": "node skills/software-engineer/tests/spec.mjs",
+    "catalog": "node skills/software-engineer/tests/catalog.mjs",
+    "lint": "node skills/software-engineer/scripts/smells.mjs --strict",
+    "verify:scripts": "node skills/software-engineer/scripts/smells.mjs --changed --format github"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

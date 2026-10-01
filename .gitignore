@@ -2,7 +2,14 @@ node_modules/
 dist/
 build/
 coverage/
+target/
 *.log
 .DS_Store
 .env
 .env.local
+
+# Written by `npx skills add` into the repo you installed into, never into this one.
+skills-lock.json
+.opencode/skills/
+.agents/skills/
+.claude/skills/

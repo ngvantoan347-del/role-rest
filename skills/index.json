@@ -1,0 +1,33 @@
+{
+  "skills": [
+    {
+      "name": "software-engineer",
+      "version": "5",
+      "files": [
+        "software-engineer/SKILL.md",
+        "software-engineer/references/anti-patterns.md",
+        "software-engineer/references/ci-integration.md",
+        "software-engineer/references/compliance-and-data.md",
+        "software-engineer/references/design-guide.md",
+        "software-engineer/references/discovery-playbook.md",
+        "software-engineer/references/dod-checklist.md",
+        "software-engineer/references/enterprise-standards.md",
+        "software-engineer/references/git-workflow.md",
+        "software-engineer/references/migration-and-legacy.md",
+        "software-engineer/references/plan-template.md",
+        "software-engineer/references/review-playbook.md",
+        "software-engineer/references/scale-and-architecture.md",
+        "software-engineer/references/stack-commands.md",
+        "software-engineer/references/testing-guide.md",
+        "software-engineer/scripts/smells.mjs",
+        "software-engineer/scripts/verify.mjs",
+        "software-engineer/tests/catalog.mjs",
+        "software-engineer/tests/harness.mjs",
+        "software-engineer/tests/run.mjs",
+        "software-engineer/tests/smells.test.mjs",
+        "software-engineer/tests/spec.mjs",
+        "software-engineer/tests/verify.test.mjs"
+      ]
+    }
+  ]
+}

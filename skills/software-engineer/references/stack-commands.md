@@ -3,8 +3,12 @@
 Các gate thật theo từng ecosystem.
 
 **Quy tắc trên hết: config của dự án thắng.** `scripts` trong `package.json`, CI workflow,
-hoặc `Makefile` là nguồn sự thật — không phải bảng dưới đây. `node
-<skill-base>/scripts/verify.mjs` phát hiện chúng; bảng này để bạn biết **nên tìm gì**.
+hoặc `Makefile` là nguồn sự thật — không phải bảng dưới đây. `node "$SKILL_BASE/scripts/verify.mjs"`
+phát hiện chúng; bảng này để bạn biết **nên tìm gì**.
+
+`SKILL_BASE` là thư mục chứa `SKILL.md`; mục 5 của `SKILL.md` nói cách lấy nó. Đừng hardcode
+đường dẫn tuyệt đối: skill được cài vào `.agents/skills/`, `.claude/skills/`, hay cache của
+OpenCode, mỗi nơi một vị trí.
 
 Không bịa lệnh rồi báo kết quả. Nếu dự án không có linter, hãy nói không có — đừng giả vờ
 lint pass.

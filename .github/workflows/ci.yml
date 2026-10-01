@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  skill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The scanner resolves its diff base against origin/<base>. A shallow clone of depth 1
+          # has no merge-base, so a pull request would be scanned as "no files changed" and pass.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The scripts are the deliverable here, so their tests are the gate that matters.
+      - name: Test the scripts
+        run: npm test
+
+      - name: Scan for mechanical debt
+        run: node skills/software-engineer/scripts/smells.mjs --strict --format github
+
+      # A skill whose frontmatter is malformed is not rejected anywhere - it is simply never
+      # listed. This is the check that keeps that from shipping silently.
+      - name: SKILL.md matches the Agent Skills spec
+        run: node skills/software-engineer/tests/spec.mjs
+
+      # The manifest is what an HTTP catalog install downloads. A file missing from it installs
+      # a skill whose SKILL.md points at a script that does not exist, which is a silent failure.
+      - name: Catalog manifest matches disk
+        run: node skills/software-engineer/tests/catalog.mjs
+
+      # The whole point of the repo is that `npx skills add <repo>` finds something. A layout
+      # change that breaks discovery would pass every other check in this file.
+      - name: Skill is discoverable by the ecosystem CLI
+        run: |
+          npx --yes skills@latest add . --list 2>&1 | tee /tmp/list.txt
+          grep -q 'software-engineer' /tmp/list.txt || {
+            echo "::error::`npx skills add --list` did not find software-engineer."
+            echo "The skills/ layout is what the CLI walks; a rename here hides the repo."
+            exit 1
+          }
