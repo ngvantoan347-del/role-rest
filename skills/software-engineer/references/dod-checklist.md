@@ -36,6 +36,9 @@ silence.
 - [ ] `node scripts/smells.mjs --changed` is clean, or the findings are explained.
 - [ ] `node scripts/falsify.mjs` ran, and every surviving break is either covered by a new
       test **or** explicitly recorded in the handoff as an unverified gap.
+- [ ] The `reach` line was read, not skimmed. It bounds what the result means: a clean run on a
+      file where the checker could only construct two breaks out of forty decision points is
+      "nothing found", not "nothing wrong".
 - [ ] No `TODO`/`FIXME`/`HACK`/`temp`/`quick fix` left in the tree.
 - [ ] No commented-out code, debug logging, or scaffolding files.
 - [ ] README, docs, examples, `.env.example` updated wherever the change made them wrong.

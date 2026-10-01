@@ -258,7 +258,7 @@ if (!baseline.ran) {
   process.exit(1)
 }
 if (!baseline.ok) {
-  console.log(red("  the suite already fails, so a surviving mutant would prove nothing."))
+  console.log(red("  the suite already fails, so a surviving break would prove nothing."))
   console.log(dim("  Fix the suite first, then run this again.\n"))
   process.exit(1)
 }

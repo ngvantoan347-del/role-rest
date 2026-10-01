@@ -76,7 +76,21 @@ Choose mutants from the **failure branch**, not from all the code. Removing a th
 await, inverting a condition, dropping a guard. Three to five mutants over what you just touched
 is enough; mutating an entire codebase is a different and much more expensive job.
 
-`node scripts/falsify.mjs` does all of this mechanically, over every changed file.
+`node scripts/falsify.mjs` does all of this mechanically, over every changed file, and reports the
+surviving breaks by **line**.
+
+Two things about its output that change how you read it, and both are the tool refusing to flatter
+the code:
+
+- **It mutates one site at a time.** Applying every mutation in a file at once would let a single
+  covered guard stand in for the untested ones beside it, and the file would come back clean.
+- **It reports its own reach.** The `reach` line says how many breaks it constructed from how many
+  decision points. A low ratio means the checker could not see most of the change, so a clean result
+  is "nothing found", not "nothing wrong". Read it before you write "verified".
+
+A mutation that stopped the file from parsing is dropped, because a suite that cannot load the file
+has proved nothing about any branch. For languages the runner cannot syntax-check, breaks are
+reported as `unchecked` and scored as neither caught nor survived.
 
 ## 4. Run it, do not just read it
 
