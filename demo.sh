@@ -3,7 +3,7 @@
 #
 # Why this exists: the README leads with falsify catching one break and missing another in the
 # same file. A claim like that is worth nothing if a stranger cannot see it in under a minute,
-# and "clone, install, read the code, trust me" is not a path anyone takes. So the exact
+# and asking someone to read the source and believe it is not a path anyone takes. So the exact
 # scenario is materialised here, run for real, and printed.
 #
 # Nothing is mocked. The suite that goes green is a real `node --test` run.

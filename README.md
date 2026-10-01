@@ -231,9 +231,13 @@ fine in issues and pull requests; it does not belong in files that ship to users
 
 ## Contributing
 
-Open an issue describing a rule you want added, with the failure it prevents. Changes follow the
-discipline the skill teaches: small diff, tests for the scripts, and evidence the skill still
-loads and installs.
+`CONTRIBUTING.md` covers the two things a first PR here usually gets wrong. Short version: run the
+gates, and give every rule the failure it prevents. Changes follow the discipline the skill teaches:
+small diff, tests for the scripts, and evidence the skill still loads and installs.
+
+Issue templates cover a new rule, a false positive, and an eval result. The last one is the
+interesting template: `eval-runs/RESULTS.md` states three limits on its own evidence, and
+contradicting any of them is the most useful thing anyone could bring.
 
 ## License
 
