@@ -47,13 +47,13 @@ if (!has("--run") && !has("--grade")) {
   for (const c of cases) {
     console.log(`  [${c.eval_id}] ${c.eval_name}`)
     // `checks` are the mechanical assertions; `judgement` is what regex cannot decide.
-    console.log(`      checks: ${(c.checks || []).map((k) => k.name).join("; ") || "none"}`)
-    console.log(`      prompt: ${c.prompt.slice(0, 100).replace(/\n/g, " ")}...`)
+    console.log(`      checks: ${(c.checks || []).map((k) => k.name).join("; ") || "none"}`) // smells:allow debug-leftover -- this script only prints a report
+    console.log(`      prompt: ${c.prompt.slice(0, 100).replace(/\n/g, " ")}...`) // smells:allow debug-leftover -- this script only prints a report
     console.log("")
   }
-  console.log(`  Run with --run to emit spawn instructions, --grade <dir> to grade saved runs.`)
-  console.log(`  A driver (subagent launcher) is required; this script deliberately has none,`)
-  console.log(`  because a test that quietly grades its own author's output is not a test.\n`)
+    console.log(`  Run with --run to emit spawn instructions, --grade <dir> to grade saved runs.`)
+  console.log(`  A driver is required; this script deliberately has none,`) // smells:allow debug-leftover -- this script only prints a report
+  console.log(`  grading its own author's output is not a test.\n`) // smells:allow debug-leftover -- this script only prints a report
   process.exit(0)
 }
 

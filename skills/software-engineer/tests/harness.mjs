@@ -19,6 +19,17 @@ export const here = dirname(fileURLToPath(import.meta.url))
 export const SCRIPTS = join(here, "..", "scripts")
 export const VERIFY = join(SCRIPTS, "verify.mjs")
 export const SMELLS = join(SCRIPTS, "smells.mjs")
+export const PROOF = join(SCRIPTS, "proof.mjs")
+export const CI = join(SCRIPTS, "ci.mjs")
+
+/**
+ * Run git in a fixture repo. `run` prefixes node for .mjs scripts, which is wrong for a binary,
+ * so this spawns git directly.
+ */
+export function gitIn(dir, args) {
+  const r = spawnSync("git", args, { cwd: dir, encoding: "utf8" })
+  return { code: r.status, out: r.stdout || "", err: r.stderr || "" }
+}
 
 const tempDirs = []
 

@@ -33,6 +33,8 @@ Các mục bỏ qua cũng phải được **báo**, chứ im lặng là dạng t
 ## Hygiene
 
 - [ ] `node scripts/smells.mjs --changed` sạch, hoặc phát hiện đã được giải thích.
+- [ ] `node scripts/proof.mjs` chạy, và mọi mutation sống sót đã được test thêm **hoặc** ghi rõ
+      trong handoff là khoảng trống chưa verify.
 - [ ] Không còn `TODO`/`FIXME`/`HACK`/`temp`/`quick fix` trong cây.
 - [ ] Không code bị comment, log debug, hay file giàn giáo.
 - [ ] README, docs, ví dụ, `.env.example` đã cập nhật chỗ thay đổi làm sai.

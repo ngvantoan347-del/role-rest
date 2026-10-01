@@ -39,8 +39,33 @@ hình. Đừng gộp hai trường hợp đó, và đừng để CI coi `2` là 
 | Nơi | Lệnh | Vì sao ở đó |
 | --- | --- | --- |
 | Pre-commit | `smells.mjs --staged` | Rẻ, chạy mili giây, chặn secret và test bị tắt trước khi nó tồn tại trong history |
-| Required check mỗi PR | `verify.mjs --changed` + `smells.mjs --changed --base origin/main` | Đây là định nghĩa "xong" mà mọi người thực sự bị chặn |
+| Required check mỗi PR | `ci.mjs --no-proof` | Đây là định nghĩa "xong" mà mọi người thực sự bị chặn |
 | Nightly / main | `verify.mjs` (không `--changed`) | Chạy root **và mọi workspace unit**, bắt được package bị bỏ sót bởi bản đồ affected |
+
+`ci.mjs` chạy `verify --changed`, `smells --changed`, rồi `proof`. Bỏ `--no-proof` ở PR để có
+mutation testing — nó chậm nhất nhưng là gate duy nhất bắt được nhánh không được test.
+
+### Mutation testing trong CI
+
+`proof.mjs` sửa file rồi trả lại, nên nó **không** chạy song song với job khác trên cùng
+checkout, và không chạy trên `pull_request_target` (fork có thể sửa workflow của bạn). Chạy nó
+ở job riêng:
+
+```yaml
+proof:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+      with: { fetch-depth: 0 }
+    - uses: actions/setup-node@v4
+      with: { node-version: 20 }
+    - run: npm ci
+    - run: node .opencode/skills/software-engineer/scripts/proof.mjs
+```
+
+Job này chạy lại test suite N lần (mỗi mutation một lần), nên nó chậm. Giữ nó ở required check
+nếu team chịu được; nếu không, chạy nightly và báo kết quả — nhưng **đừng báo là pass** khi nó
+chưa từng chạy.
 
 Cột "Vì sao" quan trọng hơn trực giác: `--changed` ở PR và full ở main là hai lớp khác
 nhau. Chỉ có `--changed` thì một lỗi mapping package sẽ sống mãi; chỉ có full thì không ai

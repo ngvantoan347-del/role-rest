@@ -101,7 +101,14 @@ module nào sở hữu behavior, không biết điều gì sẽ đúng ở 10.00
 | Comment thuần túy tự tán | Che mất comment có nghĩa | Xóa |
 | Ví dụ lệch với config thật | Người mới không chạy được | Sinh lại và kiểm chứng |
 
-## Hai kiểu hỏng duy nhất
+## Cách dùng file này
 
-Mọi dòng trên thuộc về **chưa verify** hoặc **chưa có chủ**. Sửa verification trước, rồi
-gắn chủ và thiết kế cho phần còn lại.
+Các mục C đến H **không phải** chuyện verification — chúng là về sở hữu, cấu trúc, và thiết
+kế. Đừng chạy thêm một lệnh để "chữa" một god object; phải tách nó ra.
+
+Hai việc thuộc về verification thật sự, và đáng làm trước vì rẻ hơn phần còn lại của file:
+
+1. **`node scripts/proof.mjs`** — có test của bạn thật sự bắt được lỗi không.
+2. **Suy nghĩ ở N và ở đồng thời**, mục A. Không có lệnh nào kiểm tra cái này.
+
+Danh sách đầy đủ các kỹ thuật và chỗ dừng: `references/verification-techniques.md`.

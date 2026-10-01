@@ -33,7 +33,8 @@ Test đó đang bảo vệ code thay vì behavior — và khi behavior thật s�
 - **Assert vào behavior và contract** — giá trị trả về, row đã lưu, event phát ra,
   HTTP response — không phải vào việc private method nào được gọi.
 - **Một lần mỗi test:** xóa feature thì test có fail không? Nếu vẫn xanh, test vô
-  dụng. Đây là cách rẻ nhất phát hiện test rỗng.
+  dụng. `node scripts/proof.mjs` làm đúng việc này bằng cách cơ học, và làm nó cho **mọi**
+  nhánh trong diff thay vì một chỗ bạn tự nhớ.
 - **Assert rõ ràng.** Không pass âm thầm do assertion library cấu hình sai.
 - **Dọn dẹp.** Mỗi test để hệ thống như lúc nó tìm thấy: temp dir, DB row, env var,
   global state, timer.

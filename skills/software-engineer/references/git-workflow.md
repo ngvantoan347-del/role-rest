@@ -42,15 +42,9 @@ add a regression test for a 23:59 order.
 
 ## Khôi phục
 
-```bash
-git reflog                    # tìm commit tưởng mất
-git reset --soft HEAD~1       # undo commit, giữ thay đổi ở staged
-git restore --staged <path>   # bỏ stage
-git revert <sha>              # undo an toàn, có audit trail, cho đã push
-```
-
-Việc mất thường **gần như luôn** khôi phục được. Hãy kiểm tra trước khi kết luận là mất,
-và ưu tiên `revert` cho mọi thứ đã publish.
+Lệnh thì thuộc lòng, nhưng phán đoán dưới đây thì không: việc mất gần như luôn khôi phục
+được, nên kiểm tra trước khi kết luận là mất, và ưu tiên `revert` cho mọi thứ đã publish.
+Dùng `git reflog` để tìm commit tưởng mất.
 
 ## Pull request
 
