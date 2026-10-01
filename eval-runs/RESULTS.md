@@ -43,7 +43,7 @@ and a demonstration.**
 That is the product, and it is a narrower claim than "be a better engineer". It is also the
 claim the repo now ships:
 
-- `proof.mjs` mechanises the step the skill arm reached for by hand.
+- `falsify.mjs` mechanises the step the skill arm reached for by hand.
 - `verification-techniques.md` is the ladder, with the stopping rule.
 - The prose that taught what a strong model already knows was cut.
 

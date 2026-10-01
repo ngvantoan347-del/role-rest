@@ -34,7 +34,7 @@ silence.
 ## Hygiene
 
 - [ ] `node scripts/smells.mjs --changed` is clean, or the findings are explained.
-- [ ] `node scripts/proof.mjs` ran, and every surviving mutant is either covered by a new
+- [ ] `node scripts/falsify.mjs` ran, and every surviving break is either covered by a new
       test **or** explicitly recorded in the handoff as an unverified gap.
 - [ ] No `TODO`/`FIXME`/`HACK`/`temp`/`quick fix` left in the tree.
 - [ ] No commented-out code, debug logging, or scaffolding files.

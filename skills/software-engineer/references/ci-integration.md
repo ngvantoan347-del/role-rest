@@ -40,15 +40,15 @@ Do not conflate them, and do not let CI treat `2` as green.
 | Where | Command | Why there |
 | --- | --- | --- |
 | Pre-commit | `smells.mjs --staged` | Cheap, runs in milliseconds, blocks secrets and disabled tests before they enter history |
-| Required check per PR | `ci.mjs --no-proof` | This is the definition of "done" people are actually blocked by |
+| Required check per PR | `ci.mjs --no-falsify` | This is the definition of "done" people are actually blocked by |
 | Nightly / main | `verify.mjs` (no `--changed`) | Runs the root **and every workspace unit**, catching packages the affected map skipped |
 
-`ci.mjs` runs `verify --changed`, `smells --changed`, then `proof`. Drop `--no-proof` on a PR to
-get mutation testing - the slowest gate, and the only one that catches an untested branch.
+`ci.mjs` runs `verify --changed`, `smells --changed`, then `falsify`. Drop `--no-falsify` on a PR
+to get the falsification pass - the slowest gate, and the only one that catches an untested branch.
 
-### Mutation testing in CI
+### Falsification in CI
 
-`proof.mjs` rewrites files and restores them, so it must **not** run alongside another job on the
+`falsify.mjs` rewrites files and restores them, so it must **not** run alongside another job on the
 same checkout, and must not run on `pull_request_target` (a fork can edit your workflow). Give it
 its own job:
 
@@ -61,10 +61,10 @@ proof:
     - uses: actions/setup-node@v4
       with: { node-version: 20 }
     - run: npm ci
-    - run: node .opencode/skills/software-engineer/scripts/proof.mjs
+    - run: node .opencode/skills/software-engineer/scripts/falsify.mjs
 ```
 
-That job re-runs the suite N times, once per mutation, so it is slow. Keep it as a required check
+That job re-runs the suite N times, once per break, so it is slow. Keep it as a required check
 if the team can afford it; otherwise run it nightly and report the result - but **do not report a
 pass** if it has never run.
 

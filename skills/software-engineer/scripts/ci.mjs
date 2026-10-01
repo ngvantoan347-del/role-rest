@@ -11,8 +11,8 @@
  * output would be worse than no wrapper.
  *
  * Usage:
- *   node scripts/ci.mjs                  # verify --changed, smells, proof
- *   node scripts/ci.mjs --no-proof       # skip mutation testing (slowest gate)
+ *   node scripts/ci.mjs                  # verify --changed, smells, falsify
+ *   node scripts/ci.mjs --no-falsify     # skip the falsification pass (slowest gate)
  *   node scripts/ci.mjs --format json
  *
  * Exit: 0 all gates green, 1 at least one gate failed.
@@ -33,20 +33,20 @@ const green = (s) => c("32", s)
 const bold = (s) => c("1", s)
 
 // Order is cheapest-and-most-blocking first, so a developer sees the fatal problem before
-// scrolling past a diff scan. `proof` runs last because it mutates the tree and is the slowest.
+// scrolling past a diff scan. `falsify` runs last because it rewrites the tree and is the slowest.
 const GATES = [
   { id: "verify", script: "verify.mjs", args: ["--changed"], owns: "did the project's own gates pass" },
   { id: "smells", script: "smells.mjs", args: ["--changed"], owns: "mechanical debt in the diff" },
-  { id: "proof", script: "proof.mjs", args: [], owns: "whether your tests catch the break", optional: true },
+  { id: "falsify", script: "falsify.mjs", args: [], owns: "whether your tests would catch the break", optional: true },
 ]
 
-const selected = has("--no-proof") ? GATES.filter((g) => !g.optional) : GATES
+const selected = has("--no-falsify") ? GATES.filter((g) => !g.optional) : GATES
 const json = argv.includes("--format") && argv[argv.indexOf("--format") + 1] === "json"
 
 console.log(bold(`\nci  ${dim(process.cwd())}\n`))
 const results = []
 for (const g of selected) {
-  const args = g.optional && has("--no-proof") ? [] : [...g.args, ...(json ? ["--format", "json"] : ["--no-color"])]
+  const args = g.optional && has("--no-falsify") ? [] : [...g.args, ...(json ? ["--format", "json"] : ["--no-color"])]
   process.stdout.write(`  ${g.id.padEnd(8)} ${dim(g.owns)}\n`)
   const r = spawnSync(process.execPath, [join(here, g.script), ...args], {
     cwd: process.cwd(),

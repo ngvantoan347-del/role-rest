@@ -34,7 +34,7 @@ still green.
 - **Assert on behavior and contract** - return values, stored rows, emitted events, HTTP
   responses - not on which private method got called.
 - **Once per test:** delete the feature, does the test fail? If it is still green, the test
-  is useless. `node scripts/proof.mjs` does exactly this mechanically, and does it for
+  is useless. `node scripts/falsify.mjs` does exactly this mechanically, and does it for
   **every** branch in the diff instead of one spot you remembered.
 - **Explicit assertions.** No silent passes from a misconfigured assertion library.
 - **Cleanup.** Every test leaves the system as it found it: temp dir, DB rows, env vars,

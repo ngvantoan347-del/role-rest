@@ -2,7 +2,7 @@
   "skills": [
     {
       "name": "software-engineer",
-      "version": "9",
+      "version": "10",
       "files": [
         "software-engineer/SKILL.md",
         "software-engineer/references/anti-patterns.md",
@@ -21,16 +21,16 @@
         "software-engineer/references/testing-guide.md",
         "software-engineer/references/verification-techniques.md",
         "software-engineer/scripts/ci.mjs",
-        "software-engineer/scripts/proof.mjs",
+        "software-engineer/scripts/falsify.mjs",
         "software-engineer/scripts/smells.mjs",
         "software-engineer/scripts/verify.mjs",
         "software-engineer/tests/catalog.mjs",
         "software-engineer/tests/ci.test.mjs",
         "software-engineer/tests/eval.mjs",
         "software-engineer/tests/evals/evals.json",
+        "software-engineer/tests/falsify.test.mjs",
         "software-engineer/tests/fixture.mjs",
         "software-engineer/tests/harness.mjs",
-        "software-engineer/tests/proof.test.mjs",
         "software-engineer/tests/run.mjs",
         "software-engineer/tests/smells.test.mjs",
         "software-engineer/tests/spec.mjs",

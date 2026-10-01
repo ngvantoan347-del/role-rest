@@ -1,6 +1,6 @@
 ---
 name: software-engineer
-description: Verification discipline for AI coding agents. Use when a change edits source files or is being reviewed - bug fixes, features, refactors, migrations, integrations - and before handing work back. Provides the escalation and verification steps a capable agent will not reach for on its own - prove-it-red, delete-and-observe, mutation testing - plus three scripts that run the project's real gates, scan the diff, and prove the tests catch the break. Covers monorepos, distributed and multi-tenant systems, data and access boundaries, legacy migration, and review, so it holds up in a large engineering organisation.
+description: Verification discipline for AI coding agents. Use when a change edits source files or is being reviewed - bug fixes, features, refactors, migrations, integrations - and before handing work back. Provides the escalation and verification steps a capable agent will not reach for on its own - prove-it-red, delete-and-observe, falsification - plus three scripts that run the project's real gates, scan the diff, and make "tests pass" falsifiable. Covers monorepos, distributed and multi-tenant systems, data and access boundaries, legacy migration, and review, so it holds up in a large engineering organisation.
 license: MIT
 compatibility: opencode, claude-code, codex, cursor, gemini-cli
 metadata:
@@ -32,7 +32,7 @@ trust. The tier sets **both the steps and the verification budget**:
 | --- | --- | --- | --- |
 | **T1** | typo, comment, config value, no design decision | Fix, report. No plan. | The related test. A 20-minute full suite is not required. |
 | **T2** | one feature or bug following an existing pattern | 5-7 line plan, implement, report | Prove-it-red |
-| **T3** | new subsystem, data model, public interface, refactor across layers, unfamiliar repo | Plan with options and risks. **Wait for approval.** | Plus targeted mutation testing |
+| **T3** | new subsystem, data model, public interface, refactor across layers, unfamiliar repo | Plan with options and risks. **Wait for approval.** | Plus falsification of the change |
 | **T4** | user data, money, permissions, shared infrastructure, an architectural decision | T3 plus: mark **T4**, blast radius, rollback, owning team | Everything, plus a **rollback that has actually been run** |
 
 Measure by consequence, not by diff size. One line in an auth path is T3.
@@ -79,18 +79,19 @@ that ran and a result you saw.
 ```bash
 # Relative to the directory holding this SKILL.md.
 node scripts/ci.mjs                       # all three gates, one command - use this
-node scripts/ci.mjs --no-proof            # skip mutation testing (the slowest gate)
+node scripts/ci.mjs --no-falsify          # skip the falsification pass (the slowest gate)
 
 # or run them individually:
 node scripts/verify.mjs --changed          # the project's real gates, affected packages only
 node scripts/smells.mjs --changed          # mechanical debt in the diff
-node scripts/proof.mjs                     # do your tests actually catch the break?
+node scripts/falsify.mjs                   # make "tests pass" falsifiable
 ```
 
-Why `proof.mjs` exists: a green suite does **not** prove the tests ask anything. It breaks your
-code the way a bug would, then requires the suite to go red. A mutation that survives is a branch
-with no test - usually the branch you just touched. This is the step measured to be one an agent
-does not take on its own: read the code, find it plausible, report "looks fine".
+Why `falsify.mjs` exists: "tests pass" costs an agent nothing to say, and nothing in that same
+session can contradict it. This breaks your code the way a bug would - removes the throws, the
+awaits, inverts a comparison, drops a guard - then requires the suite to go red. A break that
+survives is a branch with no test, usually the one you just added. Zero config, scoped to the
+diff, runs in seconds, so it fits the loop between reading a diff and answering.
 
 Report the commands you ran and exactly what they printed, errors included. A gate that does not
 exist is **not verified**, not a pass. A failing test means you are not done: fix the cause, do not
@@ -124,7 +125,7 @@ found by reading:
 | --- | --- | --- |
 | **Abstraction at the wrong layer** | The code is correct, runs, is simply in the wrong place | Ask: when this requirement changes, who gets asked? Nobody -> wrong layer |
 | **Correct logic, wrong intent** | No syntax knows what the requirement was | Re-read the requirement; for each branch ask "what does this branch serve?" |
-| **Right test, wrong place** | Passes, coverage is green | `proof.mjs`, or delete the feature and run it again |
+| **Right test, wrong place** | Passes, coverage is green | `falsify.mjs`, or delete the feature and run it again |
 | **Breaks at scale** | Correct with ten records | Always ask about N: N+1, pagination, connections, cache, queues |
 | **Breaks under concurrency** | Sequential tests all pass | What happens when two requests arrive together? Idempotency key? |
 | **Breaks in production** | Dev has 8 cores, production has 2 | Timeouts, pools, limits - do they match production? |
@@ -155,7 +156,7 @@ Self-review with `references/review-playbook.md`, then run `references/dod-check
 What changed      - behaviour, not a file listing
 Files             - path, grouped by purpose
 Design            - the contract chosen, and why it over the alternative
-Verification      - the specific commands + exactly what they printed, including surviving mutations
+Verification      - the specific commands + exactly what they printed, including surviving breaks
 Not done / risks  - deferred debt, unverified areas, remaining risk
 Decisions needed  - what the user must choose ("none" is a legitimate answer at T1)
 ```

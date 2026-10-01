@@ -1,11 +1,67 @@
 # software-engineer
 
-An engineering discipline skill for AI coding agents. It stops the most predictable failure
-mode of AI-assisted development: the diff looks fine, the demo works, and the repo quietly
-fills with `quick fix`, `temp`, `add later`, and `idk but it works`.
+**An agent saying "tests pass" costs it nothing to say. Nothing in that same session can
+contradict it.**
 
-Works with **OpenCode, Claude Code, Codex, Cursor, Gemini CLI**, and anything else that reads
-the [Agent Skills](https://agentskills.io) format.
+This repo makes that claim falsifiable.
+
+```
+$ node skills/software-engineer/scripts/falsify.mjs
+
+falsify  /srv/checkout-service
+
+  baseline: suite green. Now breaking it on purpose.
+
+  caught   swallow-error    src/checkout.js            a build that reports failure as success
+  SURVIVED unguard          src/checkout.js            a guard clause that no longer guards
+
+  1 break(s) survived in 1 file(s). That code has no test.
+
+    src/checkout.js  unguard
+```
+
+`npm test` was green in both cases. The suite cannot tell the difference between "the
+insufficient-balance guard is tested" and "someone wrote it and nothing checks it" - because a test
+that never exercises a branch and a test that does are both green.
+
+`falsify.mjs` removes the throws, the awaits, inverts a comparison, drops a guard, and requires
+the suite to go red for each. A break that survives is a branch nobody is testing.
+
+## Why this is not just Stryker
+
+Mutation testing is 30 years old and nobody runs it. Not because it is a bad idea - because it
+costs a config file, a working directory, and minutes, so it never fits between reading a diff and
+answering.
+
+| | Stryker / PITest | `falsify.mjs` |
+| --- | --- | --- |
+| Setup | config file, per language | none |
+| Scope | the whole codebase, on demand | the diff you are reviewing |
+| Time | minutes | about a second per break |
+| Survives an agent's attention | no | it runs in the same loop as the answer |
+
+An agent will run `npm test`. It will not run Stryker. That gap is the entire opportunity.
+
+## What the A/B runs found
+
+We ran the same four tasks twice: once with this skill loaded, once with nothing. Outputs are in
+`eval-runs/`.
+
+The honest result: **the skill found no bug the baseline missed.** Both arms independently found
+the missing backoff, the `retries: 0` resolving `undefined`, the off-by-one counting attempts
+instead of retries, the IDOR with no tenant scope. A capable model does not need to be taught
+serious bugs.
+
+What the skill added was one step: it asked whether the tests could catch the break. On one case
+the with-skill run made the flag branch unreachable and watched the suite stay green, then fixed
+the flag as a contract with a CI-enforced expiry. The baseline noticed the two flows were
+identical, and stopped.
+
+That step is the product. `falsify.mjs` mechanises it. `verification-techniques.md` is the rest
+of the ladder.
+
+Read `eval-runs/RESULTS.md` before adopting - including the limits: one model, one run per arm,
+no comparison against a competing skill.
 
 ## Install
 
@@ -13,12 +69,8 @@ the [Agent Skills](https://agentskills.io) format.
 npx skills add ngvantoan347-del/role-rest
 ```
 
-That is the whole install. The CLI detects your agent and writes the skill where it looks for
-it. To install for one agent only:
-
-```bash
-npx skills add ngvantoan347-del/role-rest --agent opencode
-```
+Works with **OpenCode, Claude Code, Codex, Cursor, Gemini CLI**, and anything reading the
+[Agent Skills](https://agentskills.io) format.
 
 <details>
 <summary>Manual install, and OpenCode's HTTP catalog</summary>
@@ -30,11 +82,9 @@ mkdir -p .opencode/skills
 cp -r role-rest/skills/software-engineer .opencode/skills/
 ```
 
-**HTTP catalog** - OpenCode downloads and caches it, no clone. `skills/index.json` is the
-manifest; every entry resolves as `<base-url>/<skill-name>/<file>`:
+**HTTP catalog** - OpenCode downloads and caches it, no clone:
 
 ```jsonc
-// ~/.config/opencode/opencode.jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "skills": ["https://raw.githubusercontent.com/ngvantoan347-del/role-rest/main/skills/"]
@@ -43,95 +93,29 @@ manifest; every entry resolves as `<base-url>/<skill-name>/<file>`:
 
 </details>
 
-## What it does
-
-Sizes the work first, so it never slows down a one-line fix:
-
-| Tier | Applies to | Process |
-| --- | --- | --- |
-| T1 trivial | typo, config value, one-line fix | Edit, run one check, report |
-| T2 standard | one feature or bug following existing patterns | Short plan, implement, verify |
-| T3 deep | new subsystem, data model, public interface | Full plan with options and risks, **waits for approval** |
-| T4 org-wide | user data, money, permissions, shared infra, architectural decision | T3 plus blast radius, rollback, and owning team |
-
-Every rule carries its reasoning, because a rule without a reason is one the model asks about
-or routes around when the task gets hard. The load-bearing ones:
-
-- **Evidence or it did not happen.** No "it should work now" - the handoff names the commands
-  that ran and what they printed. Consequence-based, not threshold-based: a one-line change to
-  auth is T3.
-- **Don't stand in the wrong place.** A table for when to proceed silently, when to verify
-  yourself, and when to ask once. Guessing wrong and asking constantly cost more than the
-  process saves.
-- **No deferred debt.** A `TODO` left in the tree needs an owner and a tracked issue.
-- **No placeholders in shipped paths.** `return null`, empty bodies, fake data.
-- **No unverified bugs.** Reproduce, failing test, root cause, fix the cause, explain it.
-- **No silent scope changes.** If reality diverges from the plan, it stops and says so.
-- **No secrets, ever.** Not in code, not in logs, not in commits.
-- **Blast radius is part of the answer.** T4 work names who else runs it, how to roll it back,
-  and which team owns it - not just what changed.
-
-## Beyond one repo
-
-Most skill libraries stop at "write good code in this repo". This one goes where the work
-actually goes at scale:
-
-| Area | What it covers |
-| --- | --- |
-| Monorepo | Affected-graph verification, shared packages as internal public APIs, blast radius of a config change |
-| Distributed | At-least-once delivery and what it forces on consumers, dual-write, idempotency keys, clock skew, distributed correctness |
-| Multi-tenant | Tenant scope in every query, cache key, and log - the cross-tenant leak no scanner finds |
-| Migration | Strangler fig, expand-contract, resumable backfills, API deprecation windows, code with no tests |
-| Compliance | Data classification, audit trail fields, authZ as code, retention and deletion, SBOM, dependency provenance |
-| Review | Reading order for a diff, the questions that find real defects, comments that get acted on |
-| CI | Wiring the scripts into a pipeline, and which exit code means what |
-
-## Scripts
-
-Three dependency-free Node scripts ship with the skill. The agent runs them, and so can you.
+## The three scripts
 
 ```bash
-# all three gates, one command
-node skills/software-engineer/scripts/ci.mjs
-
-# discover this project's real typecheck / lint / test / build commands and run them
-node skills/software-engineer/scripts/verify.mjs
-
-# monorepo: run only the gates of the packages your diff touches
-node skills/software-engineer/scripts/verify.mjs --changed --jobs 4
-
-# scan the diff for the mechanical residue of vibe coding
-node skills/software-engineer/scripts/smells.mjs --changed --base origin/main
-
-# do your tests actually catch the break?
-node skills/software-engineer/scripts/proof.mjs
+node skills/software-engineer/scripts/ci.mjs        # all three, one command
 ```
 
-**`verify.mjs`** detects the project's real gates from its own config - `package.json`,
-`Makefile`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `mvnw`, and friends - then runs them. A
-gate it cannot find is reported `MISSING`, never as passing, so a repo with no linter is never
-mistaken for a clean one. Exit `2` means it found nothing to run, which is not a pass.
+**`falsify.mjs`** - the one an agent will not run on its own. Breaks the changed code the way a
+bug would, then requires the suite to go red. Groups survivors by file so the report is
+actionable, and restores the working tree byte for byte - it verifies it did. A falsification tool
+that corrupts uncommitted work is worse than none.
 
-It reads workspace layouts (`workspaces`, `pnpm-workspace.yaml`, Cargo members, `go.work`,
-`lerna.json`) so `--changed` runs affected packages instead of the whole tree, and emits
-`--format json|sarif|github` for CI.
+**`verify.mjs`** - detects the project's real gates from its own config (`package.json`,
+`Makefile`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `mvnw`, and friends) and runs them. Reads
+workspace layouts so `--changed` runs affected packages, not the whole tree. A gate it cannot
+find is reported `MISSING`, never as passing. `--format json|sarif|github` for CI.
 
-**`smells.mjs`** audits a diff for mechanical residue: debt markers, hardcoded secrets,
-swallowed exceptions, disabled tests, type and lint suppressions, stub functions, commented-out
-code, unresolved merge conflicts, unsafe deserialization, disabled TLS verification, shell
-injection, string-built SQL, and non-deterministic tests.
+**`smells.mjs`** - audits the diff for mechanical residue: debt markers, hardcoded secrets,
+swallowed exceptions, disabled tests, lint suppressions, stub functions, merge conflicts, unsafe
+deserialization, disabled TLS verification, shell injection, string-built SQL, non-deterministic
+tests.
 
-**`proof.mjs`** is the one an agent will not run on its own. It breaks the changed code the way a
-bug would - removes the throws, the awaits, inverts a comparison, drops a guard - then requires
-the suite to go red. A mutation that survives is a branch with no test, usually the branch you
-just touched. This repo found its own gaps with it: `proof.mjs` had an untested "nothing to
-prove" path, and it reported one surviving mutation in `ci.mjs`.
-
-**`ci.mjs`** runs all three and names which gate owns which failure, because "exit 1" from three
-scripts tells you nothing about where to look.
-
-All three read `.software-engineer.json` at the repo root, so a company centralises its own
-gates and rules in a file that gets reviewed like anything else:
+All three read `.software-engineer.json`, so a company centralises its own gates and rules in a
+file that gets reviewed like anything else:
 
 ```json
 {
@@ -145,19 +129,23 @@ gates and rules in a file that gets reviewed like anything else:
 }
 ```
 
-When a finding is real and you are keeping it anyway, suppress that one rule inline and say
-why. An allow with no `-- reason` is itself reported, because a suppression nobody can explain
-is a deleted rule:
+Keeping a finding? Suppress that one rule inline, and say why. An allow with no `-- reason` is
+itself reported - a suppression nobody can explain is a deleted rule.
 
-```ts
-const key = process.env.API_KEY // smells:allow env-default-secret -- platform team owns this, PLAT-4821
-```
+## Beyond one repo
 
-**The scripts are a safety net, not the review.** A regex compares strings. It cannot know
-what the requirement was, which module owns a behavior, or what breaks at ten thousand
-records. Both print a reminder saying so on every run. The failures that actually cause
-incidents - wrong abstraction, correct code doing the wrong thing, breakage under concurrency,
-holes that come from intent - are found by reading.
+Most skill libraries stop at "write good code in this repo". This one goes where the work
+actually goes at scale:
+
+| Area | Covers |
+| --- | --- |
+| Monorepo | Affected-graph verification, shared packages as internal public APIs, blast radius of a config change |
+| Distributed | At-least-once delivery and what it forces on consumers, dual-write, idempotency keys, clock skew |
+| Multi-tenant | Tenant scope in every query, cache key, and log - the cross-tenant leak no scanner finds |
+| Migration | Strangler fig, expand-contract, resumable backfills, API deprecation windows, code with no tests |
+| Compliance | Data classification, audit trail fields, authZ as code, retention and deletion, SBOM, dependency provenance |
+| Review | Reading order for a diff, the questions that find real defects, comments that get acted on |
+| CI | Wiring the scripts in, and which exit code means what |
 
 ## Contents
 
@@ -167,7 +155,7 @@ skills/
 └── software-engineer/
     ├── SKILL.md                        the discipline: tiers, ladder, escalation
     ├── references/                     loaded on demand, not on activation
-    │   ├── verification-techniques.md  the ladder: prove-it-red, delete-and-observe, mutation
+    │   ├── verification-techniques.md  the ladder: prove-it-red, delete-and-observe, breaking
     │   ├── discovery-playbook.md       reading an unfamiliar repo, finding seams
     │   ├── enterprise-standards.md     CODEOWNERS, company rules, ADRs, branch protection
     │   ├── stack-commands.md           gates for the ecosystems verify.mjs has no detector for
@@ -184,16 +172,16 @@ skills/
     │   └── dod-checklist.md            Definition of Done + handoff template
     ├── scripts/
     │   ├── ci.mjs                      all three gates, one command
+    │   ├── falsify.mjs                 break the change, require the suite to catch it
     │   ├── verify.mjs                  detect and run the project's real gates
-    │   ├── smells.mjs                  audit a diff for mechanical debt
-    │   └── proof.mjs                   mutate the change, require the suite to catch it
+    │   └── smells.mjs                  audit a diff for mechanical debt
     └── tests/
         ├── harness.mjs                 temp-repo fixtures and assertions
         ├── run.mjs                     runs every suite
-        ├── verify.test.mjs             tests for verify.mjs
-        ├── smells.test.mjs             tests for smells.mjs
-        ├── proof.test.mjs              tests for proof.mjs, including tree restoration
-        ├── ci.test.mjs                 tests for ci.mjs
+        ├── falsify.test.mjs            9 tests, including tree restoration
+        ├── verify.test.mjs             22 tests
+        ├── smells.test.mjs             32 tests
+        ├── ci.test.mjs                 5 tests
         ├── eval.mjs                    A/B harness against a no-skill baseline
         ├── fixture.mjs                 materialise an eval case's fixture repo
         ├── evals/evals.json            the cases and their assertions
@@ -204,7 +192,7 @@ skills/
 ## Developing on this repo
 
 ```bash
-npm test          # 68 tests across 4 suites
+npm test          # 69 tests across 4 suites
 npm run gate      # the skill's own gates, run on itself
 npm run spec      # SKILL.md satisfies the Agent Skills format
 npm run catalog   # skills/index.json matches disk, all references resolve
@@ -213,33 +201,18 @@ npm run lint      # smells.mjs scanning this repo, strict, zero-warning budget
 
 `npm run spec` is not ceremony. A skill whose frontmatter is malformed is **not rejected
 anywhere** - it is simply never listed, so the repo looks healthy and the person installing it
-gets silence. That failure is invisible to every other check in this file, which is exactly
-why it needs its own.
+gets silence. Invisible to every other check here, which is exactly why it needs its own.
 
 ### Language
 
-Everything committed here is in English, including the discussion inside the skill. Vietnamese
-is fine in issues and pull requests; it does not belong in the files.
-
-## Does it actually help?
-
-A/B runs are committed in `eval-runs/`, with `RESULTS.md` as the write-up. The short version: on
-four fixture tasks the skill found **no bug the baseline missed** - both arms independently found
-the same missing backoff, the same `retries: 0` fall-through, the same IDOR. What the skill added
-was one extra verification step, and that step was usually the difference between a suspicion and
-a demonstration.
-
-That is a narrower claim than "be a better engineer", and it is the one this repo now ships.
-`proof.mjs` exists because that step is the one measured to be absent without prompting.
-
-Read `RESULTS.md` before adopting it, including the limits: one model, one run per arm, and no
-comparison against a competing skill.
+Everything committed here is in English, including the discussion inside the skill. Vietnamese is
+fine in issues and pull requests; it does not belong in files that ship to users of other agents.
 
 ## Contributing
 
-Open an issue describing a rule you want added, with the failure it prevents. Changes follow
-the discipline the skill teaches: small diff, tests for the scripts, and evidence the skill
-still loads and installs.
+Open an issue describing a rule you want added, with the failure it prevents. Changes follow the
+discipline the skill teaches: small diff, tests for the scripts, and evidence the skill still
+loads and installs.
 
 ## License
 

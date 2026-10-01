@@ -1,232 +1,232 @@
 # Review Playbook
 
-Review có hai hướng: đọc diff của người khác, và đọc lại thay đổi của chính mình trước khi
-mở PR. Cùng một bộ câu hỏi cho cả hai.
+Review goes two ways: reading someone else's diff, and re-reading your own change before you
+open the PR. The same set of questions applies to both.
 
-Phần PR **tác giả** viết — mô tả, format, secret, khi nào split — đã nằm ở
-`references/git-workflow.md`. File này là phần **reviewer-side**: đọc gì trước, hỏi gì,
-comment thế nào để được nghe, và khi nào thì chặn.
+The **author**-side of a PR - description, formatting, secrets, when to split - is already in
+`references/git-workflow.md`. This file is the **reviewer side**: what to read first, what to
+ask, how to comment so you get heard, and when to block.
 
-Vì sao tồn tại: phần lớn tiêu chuẩn "review kỹ" trở thành đọc diff một lượt rồi bấm
-merge. Đó là hành vi có hậu quả, không phải sự cẩn thận — hậu quả là người khác phải tìm ra
-lỗi của bạn trong production, nơi tốn gấp bộ.
+Why it exists: most "review it carefully" standards turn into reading the diff once and
+clicking merge. That is behaviour with consequences, not diligence - the consequence is that
+someone else has to find your bug in production, where it costs more.
 
-## 1. Reviewer đang làm gì
+## 1. What a reviewer is doing
 
-Review không phải để viết lại code của người khác. Ba việc, theo thứ tự ưu tiên:
+Review is not for rewriting someone else's code. Three jobs, in priority order:
 
-1. **Có an toàn merge không.** Lỗi nào tốn nhiều hơn để tìm ra sau này.
-2. **Contract có đúng không.** Ai bị ảnh hưởng, và caller cũ có còn chạy không.
-3. **Có đọc được trong một lần ngồi không.** Diff không review được là review không xảy
-   ra.
+1. **Is it safe to merge.** Which bugs cost more to find later.
+2. **Is the contract right.** Who is affected, and do old callers still
+   work.
+3. **Is it readable in one sitting.** An unreviewable diff is a review that does not happen.
 
-Bạn **không** phải làm: chứng minh code của mình đẹp hơn, thêm abstraction, hay sửa lỗi
-thuộc phạm vi PR đó. Vì sao: mỗi thay đổi không được hỏi ý kiến đẩy lỗi về chỗ không ai
-đọc, và nó làm diff tốt bị chôn trong diff không liên quan.
+What you **do not** do: prove your own code is prettier, add abstractions, or fix bugs outside
+the scope of that PR. Why: every unasked-for change pushes the bug somewhere nobody reads, and
+it buries a good diff under unrelated diffs.
 
-Đọc như kỹ sư đang cố **giữ** hệ thống chạy, không như người đang muốn nó chạy theo ý
-mình.
+Read like an SRE trying to **keep** the system running, not like someone who wants it to run
+their way.
 
-## 2. Thứ tự đọc diff
+## 2. Order to read the diff
 
-| Thứ tự | Đọc gì | Vì sao ở đây |
+| Order | What to read | Why it is here |
 | --- | --- | --- |
-| 1 | **Contract và data shape**: chữ ký, schema, response, migration | Blast radius được quyết định ở ranh giới. Sửa ở đây sau này đắt gấp bộ |
-| 2 | **Đường lỗi và failure**: ai xử lý, retry, timeout, phần bị nuốt | Lỗi im lặng là lỗi quay lại dưới lớp áo khác |
-| 3 | **Concurrency và transaction**: idempotency, thứ tự ghi, race | Test tuần tự đều xanh; lỗi chỉ hiện khi chạy thật |
-| 4 | **Logic thân hàm** | Thường đúng nhất trong diff |
-| 5 | **Tên, format, comment** | Không ship incident. Để CI và formatter lo |
+| 1 | **Contracts and data shape**: signatures, schema, response, migration | Blast radius is decided at the boundary. Fixing it here later costs more |
+| 2 | **Failure paths**: who handles it, retry, timeout, what gets swallowed | A silent failure is a failure that comes back wearing a different coat |
+| 3 | **Concurrency and transactions**: idempotency, write order, race | Sequential tests all pass; the bug only shows up when it really runs |
+| 4 | **The bulk of the logic** | Usually the most correct part of a diff |
+| 5 | **Names, formatting, comments** | Does not ship an incident. Leave it to CI and the formatter |
 
-Sai thứ tự phổ biến nhất là đọc hết thân hàm trước khi nhìn contract — bạn sẽ đọc một
-lần ngồi hiểu code rồi phát hiện contract sai ở dòng cuối.
+The most common wrong order is reading the whole body before looking at the contract - you read
+a full sitting understanding the code, then find the contract is wrong on the last line.
 
-Chi tiết phần contract và data: `references/design-guide.md`.
+Contract and data details: `references/design-guide.md`.
 
-## 3. Checklist high-signal
+## 3. High-signal checklist
 
-Đọc một lượt không đủ. Chạy từng câu hỏi này, và **trả lời thành tiếng** trong review —
-câu trả lời miệng là thứ buộc bạn nghĩ tới nó.
+One read is not enough. Run each of these questions, and **answer them out loud** in the review
+- an oral answer is what forces you to think of it.
 
-| Câu hỏi | Câu trả lời xấu trông như thế này | Kiểm tra rẻ |
+| Question | What a bad answer looks like | Cheap check |
 | --- | --- | --- |
-| Ai bị ảnh hưởng bởi diff này? | "Chỉ nội bộ" mà không nói nội bộ nào | Đọc từ caller thật, đếm ngược từ symbol mới |
-| Cái gì hỏng ở 10× lưu lượng? | Vòng lặp trong vòng lặp, `SELECT *` không limit | Đếm query mỗi request, tìm thiếu pagination |
-| Thất bại một phần thì sao? | Ghi 3 bảng không transaction, rồi trả lỗi | Liệt kê side effect, hỏi cái nào phải atomic |
-| Retry thì sao? | Không idempotency key, side effect lặp | Giả định request đến lần hai với cùng payload |
-| Caller phiên bản cũ gọi vào thì sao? | Đổi tên/xoá field trong schema | Đọc consumer thật, không đọc PR mô tả |
-| Xoá feature này, test có đỏ không? | Test assert vào mock nên vẫn xanh | Xoá nhánh và chạy lại |
-| Đường lỗi có tồn tại hay bị nuốt? | `catch` rỗng, `except: pass`, `.catch(() => {})` | Tìm exception bị bỏ qua trong diff |
-| Dữ liệu ghi có atomic không? | Ghi file trước, update DB sau | Kiểm tra thứ tự side effect |
-| Có gì được log mà lẽ ra không nên? | Log payload đầy đủ, PII, token trong request | Đọc từng log line mới thêm |
-| Config/env mới có default an toàn không? | `TIMEOUT_MS` không default, thiếu thì bằng 0 | Đọc `.env.example` và cách config được load |
-| Đường mới có authN + authZ? | Chỉ copy auth từ route bên cạnh mà chưa kiểm tra | So với route tương tự đã có |
+| Who is affected by this diff? | "Internal only" without saying which internal | Read the real callers, count backwards from the new symbol |
+| What breaks at 10× traffic? | A loop inside a loop, a `SELECT *` with no limit | Count queries per request, look for missing pagination |
+| What happens on partial failure? | Writing 3 tables with no transaction, then returning an error | List the side effects, ask which have to be atomic |
+| What about retry? | No idempotency key, a repeated side effect | Assume the request arrives a second time with the same payload |
+| What if an old-version caller calls in? | Renaming/deleting a field in the schema | Read the real consumer, not the PR description |
+| Delete this feature - does the test go red? | The test asserts against a mock, so it stays green | Delete the branch and re-run |
+| Does the failure path exist or is it swallowed? | An empty `catch`, `except: pass`, `.catch(() => {})` | Look for ignored exceptions in the diff |
+| Is the written data atomic? | Write the file first, update the DB after | Check the order of side effects |
+| Is anything logged that should not be? | Full payload logs, PII, tokens in requests | Read every new log line |
+| Do the new config/env values have safe defaults? | `TIMEOUT_MS` with no default, so missing means 0 | Read `.env.example` and how config is loaded |
+| Does the new path have authN + authZ? | Auth copied from the neighbouring route without checking | Compare against a similar existing route |
 
-Đây là cùng nhóm lỗi mà `references/anti-patterns.md` liệt kê — viết từ phía reviewer, và
-chỉ giữ những cái đọc được trong một diff. Chi tiết policy test: `references/testing-guide.md`.
+This is the same set of bugs that `references/anti-patterns.md` lists - written from the reviewer's
+side, and keeping only the ones readable in a diff. Test policy details: `references/testing-guide.md`.
 
-Hai dòng cuối của bảng — log dữ liệu nhạy cảm và auth trên đường mới — là phần bị bỏ nhanh
-nhất vì không có test nào đỏ khi bạn quên. Yêu cầu cụ thể cho chúng nằm ở
-`references/compliance-and-data.md`.
+The last two rows of the table - logging sensitive data and auth on a new path - are the part
+dropped fastest because no test goes red when you forget. The specific requirements for them
+are in `references/compliance-and-data.md`.
 
-## 4. Viết comment được nghe
+## 4. Writing comments that get heard
 
-Comment bị bỏ qua **không phải vì sai**, mà vì không hành động được. Một comment phải có bốn
-thứ: **defect · input kích hoạt · hậu quả · gợi ý**. Thiếu một cái thì người kia phải tự
-suy ra, và họ sẽ không làm.
+Comments get ignored **not because they are wrong**, but because they are not actionable. A
+comment needs four things: **defect · triggering input · consequence · suggestion**. Missing
+one means the other person has to infer it, and they will not.
 
-| Comment | Điều gì xảy ra |
+| Comment | What happens |
 | --- | --- |
-| "Nit: dùng `let` chứ không cần `const`" | Bỏ qua. Không ai sửa vì hậu quả bằng không |
-| "Cái này hơi kỳ?" | Tác giả đoán ý reviewer, đoán sai, sửa theo hướng ngược |
-| "Why?" | Không có context, tốn một vòng đi lại để lấy thông tin bạn đã có |
-| "Nên dùng `Optional` ở đây" | Sửa hoặc không sửa tùy hứng — không ai biết hậu quả khi không sửa |
-| Defect + input + hậu quả + gợi ý | Sửa ngay, hoặc giải thích tại sao không cần |
+| "Nit: use `let` where `const` is not needed" | Ignored. Nobody fixes it because the consequence is zero |
+| "This looks a bit odd?" | The author guesses your meaning, guesses wrong, and changes it the other way |
+| "Why?" | No context, costing a round trip for information you already have |
+| "Should use `Optional` here" | Fixed or not, at whim - nobody knows the consequence of not fixing it |
+| Defect + input + consequence + suggestion | Fixed immediately, or an explanation of why it is not needed |
 
 ```text
-Xấu:  "check empty trước khi ghi không?"
+Bad:  "check for empty before writing?"
 
-Tốt:  "Ở dòng 84, `saveOrder` nhận `order.items = []` khi payload thiếu trường
-       `items`, và ghi luôn.
-       Input: POST /orders với body không có `items`.
-       Hậu quả: tạo order rỗng, không có lỗi trả về cho client.
-       Gợi ý: trả 400 ở boundary nếu `items` rỗng, hoặc chặn bằng non-empty type."
+Good: "At line 84, `saveOrder` receives `order.items = []` when the payload is missing
+       the `items` field, and writes anyway.
+       Input: POST /orders with a body that has no `items`.
+       Consequence: an empty order is created, no error returned to the client.
+       Suggestion: return 400 at the boundary if `items` is empty."
 ```
 
 ```text
-Xấu:  "Race condition ở đây."
+Bad:  "Race condition here."
 
-Tốt:  "Nhánh `if (await exists(id))` rồi `insert` ở dòng 112-118 chạy ngoài
-       transaction, và `id` tới từ client.
-       Input: hai request giống nhau cùng lúc.
-       Hậu quả: hai row trùng `id`, unique constraint fail ngẫu nhiên.
-       Gợi ý: để DB chặn (unique index) và map lỗi đó thành 409, hoặc bọc
-       vào transaction với idempotency key."
+Good: "The `if (await exists(id))` then `insert` branch at lines 112-118 runs outside
+       a transaction, and `id` comes from the client.
+       Input: two identical requests at the same time.
+       Consequence: two rows with the same `id`, unique constraint fails at random.
+       Suggestion: let the DB block it (unique index) and map that error to 409, or
+       wrap it in a transaction with an idempotency key."
 ```
 
 ```text
-Xấu:  "Rename `getUsers` thành `listUsers` cho đồng bộ."
+Bad:  "Rename `getUsers` to `listUsers` for consistency."
 
-Tốt:  "Contract: `getUsers` đang được import ở 4 chỗ khác repo và một service
-       khác. `references/git-workflow.md` nói đổi tên đột ngột là phần đắt nhất.
-       Nếu muốn đổi: giữ `getUsers` làm alias deprecated, đo usage, gỡ sau.
-       Còn nếu chỉ là chuyện thẩm mỹ — để PR này yên."
+Good: "Contract: `getUsers` is imported in 4 other places in the repo and in one other
+       service. `references/git-workflow.md` says a sudden rename is the most expensive
+       thing you can do. If you want to change it: keep `getUsers` as a deprecated
+       alias, measure usage, remove it later. Cosmetic only? Leave this PR alone."
 ```
 
 ```text
-Xấu:  "Sửa lại lỗi timestamp này luôn."
+Bad:  "Fix this timestamp bug while you are here."
 
-Tốt:  "Dòng 201 so sánh `createdAt` với `now()` nhưng query đã lọc theo timezone
-       UTC — lệch một giờ ở giữa ngày.
-       Tôi chưa tái hiện được, nên đây là giả thuyết: cho tôi một case cụ thể để
-       kiểm, hoặc bỏ comment này nếu bạn đã thấy rồi."
+Good: "Line 201 compares `createdAt` with `now()` but the query already filters in
+       UTC - an hour of skew in the middle of the day.
+       I have not reproduced it, so this is a hypothesis: give me a concrete case
+       to check, or drop this comment if you have already seen it."
 ```
 
-Quy tắc: comment **không đúng** vẫn viết, nhưng gọi đúng tên nó là giả thuyết. Comment
-không phản hồi cũng vẫn bỏ lại — im lặng khi có ý kiến là loại comment tệ nhất.
+The rule: a comment that is **not certain** still gets written, but call it a hypothesis by name. A comment
+that gets no response still gets left there - silence when you have an opinion is the worst kind of comment.
 
-## 5. Khi diff quá lớn để review
+## 5. When the diff is too big to review
 
-Ngưỡng 400 dòng trong `references/git-workflow.md` là giới hạn **tác giả** tự đặt. Bạn là
-reviewer, bạn không có quyền đổi ngưỡng đó — nhưng bạn có quyền **thừa nhận mình không
-review được**, và đó là hành vi duy nhất chấp nhận được khi diff vượt sức.
+The 400-line threshold in `references/git-workflow.md` is a limit the **author** sets on themselves. You
+are the reviewer, you do not have the authority to change that threshold - but you do have the authority
+to **admit you cannot review it**, and that is the only acceptable behaviour when a diff is beyond you.
 
-| Kích thước diff | Hành động trung thực |
+| Diff size | The honest action |
 | --- | --- |
-| < 200 dòng, một concern | Review đầy đủ |
-| 200-400 dòng | Review đầy đủ, cần thời gian thật — đặt lịch, đừng đọc vội |
-| 400-800 dòng | Nói "tôi cần tách" và đề xuất mốc tách cụ thể |
-| > 800 dòng | Yêu cầu tách trước khi bắt đầu review |
-| Diff vi phạm CODEOWNERS | Chặn cho tới khi đúng owner review |
+| < 200 lines, one concern | Full review |
+| 200-400 lines | Full review, real time required - schedule it, do not rush |
+| 400-800 lines | Say "I need this split" and propose a concrete split point |
+| > 800 lines | Ask for a split before starting the review |
+| Diff violating CODEOWNERS | Block until the right owner reviews it |
 
-Ba cách hợp lệ khi không review nổi, theo thứ tự ưu tiên:
+Three legitimate moves when you cannot review it, in priority order:
 
-1. **Nói thẳng và đề xuất cách tách.** Nêu ranh giới: "refactor này tách riêng được,
-   feature giữ lại 120 dòng".
-2. **Approve có điều kiện với rủi ro được gọi tên.** "Tôi approve phần X, đã đọc kỹ.
-   Phần Y tôi chưa đọc — rủi ro chưa được kiểm chứng ở đó."
-3. **Từ chối review.** Không phải lúc nào cũng có capacity để làm đúng.
+1. **Say it plainly and propose a split.** Name the boundary: "this refactor splits off, the
+   feature stays at 120 lines".
+2. **Approve conditionally with a named risk.** "I approve part X, I have read it carefully. Part Y I have not read - the risk there is unverified."
+3. **Refuse to review.** There is not always the capacity to do it
+   right.
 
-Điều **không** bao giờ chấp nhận: approve vì diff dài, để lịch sử đầy approval. Diff dài
-không phải tín hiệu an toàn; nó là tín hiệu rằng có nhiều thứ chưa được nhìn.
+What is **never** acceptable: approving because the diff is long, to keep the history full of
+approvals. A long diff is not a safety signal; it is a signal that a lot has not been looked at.
 
-## 6. Review thay đổi của chính mình
+## 6. Reviewing your own change
 
-Tự approve không phải bằng chứng đúng. Người đọc lại code vừa viết đang đọc ý mình, chứ
-không đọc code — bạn không có khả năng thấy cái mình không nghĩ tới.
+Self-approval is not evidence of correctness. Someone re-reading code they just wrote is
+reading their own intent, not reading code - you cannot see what you did not think of.
 
-Cách làm: đóng cửa sổ, đọc `git diff` từ đầu như người khác vừa viết, và chạy checklist
-mục 3 **cùng thứ tự** — contract trước, tên sau.
+How: close the window, read `git diff` from the top as if someone else had just written it, and
+run the section 3 checklist **in the same order** - contract first, names last.
 
-Sáu thứ phải soi lại, vì đây là chỗ đầu tiên bản thân bạn quên:
+Six things to look at again, because this is where you forget first:
 
-| Soi lại | Câu hỏi | Vì sao |
+| Look again at | Question | Why |
 | --- | --- | --- |
-| **Code đã bị xoá** | Khối xoá này còn ai dùng không? Đó là dòng sửa vendor hay dòng chết? | Xoá nhầm là lỗi đắt nhất ở thời điểm sai |
-| **Default đổi lặng lẽ** | Timeout, retry count, limit, flag, giá trị null — có cái nào đổi mà PR không nói? | Người đọc không đọc được default trong diff |
-| **Error handling** | Nhánh lỗi có thật không, hay mới chỉ là `catch` và log? | Code chạy được vì lỗi chưa tới |
-| **Test bắt hồi quy** | Xoá feature, test có đỏ không? Test khẳng định contract hay implementation? | Test xanh nhưng vô nghĩa là cảm giác an toàn giả |
-| **Docs còn khớp** | Câu nào trong README/ADR/runbook giờ sai? | Docs sai còn nguy hiểm hơn docs thiếu |
-| **Scope** | Có dòng nào trong diff không thuộc PR này? | Dọn dẹp tràm vào là thay đổi không ai duyệt |
+| **Deleted code** | Is anyone still using this deleted block? Is it a vendored line or dead code? | A wrong deletion is the most expensive bug at the wrong moment |
+| **Silently changed defaults** | Timeout, retry count, limit, flag, null value - is anything changed that the PR does not mention? | A reader cannot read a default out of a diff |
+| **Error handling** | Is the error branch real, or is it just a `catch` and a log? | The code works because the error has not arrived yet |
+| **Regression tests** | Delete the feature - does the test go red? Does the test assert the contract or the implementation? | A green but meaningless test is false confidence |
+| **Docs still match** | Which line in the README/ADR/runbook is now wrong? | Wrong docs are more dangerous than missing docs |
+| **Scope** | Is any line in the diff not part of this PR? | Tidying up in passing is a change nobody reviewed |
 
-Sau đó chạy `references/dod-checklist.md`. Ô nào không tick thì sửa hoặc báo — không có ô
-nào bị bỏ qua trong im lặng.
+Then run `references/dod-checklist.md`. Any box you do not tick gets fixed or reported - no box
+gets skipped in silence.
 
-## 7. Khi nào block
+## 7. When to block
 
-**Block khi bạn có một input cụ thể làm nó hỏng.** Đó là tiêu chuẩn duy nhất. Block không
-cần sự đồng ý của tác giả; nó chỉ cần bằng chứng.
+**Block when you have a specific input that breaks it.** That is the only criterion. Blocking
+does not need the author's agreement; it only needs evidence.
 
-| Block | Không block |
+| Block | Do not block |
 | --- | --- |
-| Có input → hỏng (kèm input đó trong comment) | Sở thích về tên, layout, comment style |
-| Vi phạm required check, không có cách nào xanh | Chưa tối ưu, chưa refactor |
-| Behavior mới không có test theo `references/testing-guide.md` | "Tôi sẽ làm khác" mà không chỉ ra được hậu quả |
-| Vi phạm CODEOWNERS, hoặc đụng auth/data/migration | Diff chưa tách đủ — đó là lời nhắc, vẫn nên nhắc |
-| Không ai có thể đọc lại thay đổi này | Chậm — reviewer có nghĩa vụ nói sớm |
-| Claim trong PR không khớp code | Không thích cách tách lớp, chưa có ví dụ hỏng |
+| There is an input → it breaks (with that input in the comment) | Preference on names, layout, comment style |
+| Violates a required check, with no way to go green | Not optimised, not refactored |
+| New behaviour with no test per `references/testing-guide.md` | "I would do it differently" without being able to name a consequence |
+| Violates CODEOWNERS, or touches auth/data/migration | The diff is not split enough - that is a reminder, still worth saying |
+| Nobody can read this change back | Being slow - the reviewer has a duty to say so early |
+| A claim in the PR does not match the code | Disliking the layering, with no example of breakage |
 
-Block về **hướng đi** khi thay đổi đảo ngược được: nói bạn nghĩ gì và bạn sẽ đồng ý nếu
-gì. Block hướng đi mà vẫn để lại lựa chọn cụ thể là block vô điều kiện — tệ hơn, vì nó
-dạy cả team rằng review là cuộc đấu.
+Block on **direction** when the change is reversible: say what you think and what you would
+agree to. Blocking on direction while leaving a specific option open is an unconditional block
+- worse, because it teaches the whole team that review is a fight.
 
-**Urgent change bỏ qua review.** Khi có việc gấp thực sự — sự cố đang cháy, patch bảo
-mật — quy trình đúng không phải là rubber-stamp. Nó là:
+**Urgent changes that skip review.** When there is genuinely urgent work - an incident on fire,
+a security patch - the correct process is not a rubber stamp. It is:
 
-- Review tối thiểu, **tại chỗ**, với người đang trực: đọc diff cùng nhau, 10 phút.
-- Ghi rõ ai đã duyệt và đã xem phần nào, trong chính PR hoặc ticket.
-- Nêu phần **chưa** xem và rủi ro còn lại, thay vì để trống.
-- Một task follow-up có owner và deadline, tạo ngay khi merge chứ không đợi "sau này".
+- Minimal review, **in place**, with whoever is on call: read the diff together, 10 minutes.
+- Record who approved it and which part they saw, in the PR or the ticket itself.
+- Name the part **not** reviewed and the remaining risk, instead of leaving it blank.
+- A follow-up task with an owner and a deadline, created at merge time, not "later".
 
-Approve phẳng một thứ chưa ai đọc là đặt tên mình làm chữ ký cho thứ không hiểu. Khi nó
-nổ, tên đó xuất hiện trong postmortem.
+Approving flat something nobody read is putting your name as a signature on something you do
+not understand. When it surfaces, that name is in the postmortem.
 
-## 8. Convention, sở thích, và bất đồng
+## 8. Convention, preference, and disagreement
 
-**Convention của team thắng sở thích của bạn.** Nếu repo có formatter, có linter, có
-test đang khẳng định một style — đó là quyết định đã có người trả giá, và sửa nó tốn
-thời gian nhiều hơn lợi ích. Khi bạn muốn đổi convention, đó là một thay đổi riêng.
+**A team's convention beats your preference.** If the repo has a formatter, a linter, a test
+asserting a style - that is a decision someone already paid for, and changing it costs more
+time than it returns. When you want to change a convention, that is its own change.
 
-Mỗi comment gắn nhãn rõ: **bắt buộc** (có hậu quả), **gợi ý** (tôi thích hơn), hoặc **hỏi**
-(tôi chưa hiểu). Comment không nhãn bị hiểu là bắt buộc, và thế bạn tự tạo ra blocker
-mà không tạo ra giá trị.
+Label every comment clearly: **must** (has a consequence), **suggestion** (I prefer), or
+**question** (I do not understand). An unlabeled comment is read as mandatory, and that way you
+create a blocker without creating value.
 
-**Hai người review bất đồng** — đừng giải quyết bằng cách người có quyền hơn bấm nút:
+**Two reviewers disagree** - do not resolve it by whoever has more authority pressing a button:
 
-1. **Gọi tên khác biệt:** đây là hiểu sai requirement, là quyết định kiến trúc, hay là
-   sở thích? Ba cái đó có cách giải khác nhau.
-2. **Đưa ra bằng chứng, không ý kiến.** "Tôi nghĩ sai" không thành gì. "Ở input X, kết
-   quả là Y, đây là hậu quả Z" thì có.
-3. **Đưa câu hỏi lên đúng người quyết.** Quyết định kiến trúc thuộc ADR hoặc owner
-   service, không thuộc thread review. Cách mở một: `references/enterprise-standards.md`.
-4. **Khi vẫn bất đồng về một điểm nhỏ:** approve phần đã rõ và ghi rõ phần nào bạn chưa
-   đồng ý. Chặn cả PR vì một comment phong cách là cách tạo thói quen bỏ qua review.
+1. **Name the difference:** is this a misread of the requirement, an architecture decision, or
+   a preference? Those three have different resolutions.
+2. **Bring evidence, not opinion.** "I think it is wrong" is nothing. "With input X the result
+   is Y, and this is consequence Z" is something.
+3. **Escalate to the person who actually decides.** Architecture decisions belong in an ADR or with
+   the service owner, not in a review thread. How to open one: `references/enterprise-standards.md`.
+4. **When you still disagree on a small point:** approve the clear part and write down which part you
+   do not agree with. Blocking a whole PR over a style comment is how you train people to skip review.
 
-Còn một trường hợp không phải bất đồng: **thấy bug thật trong PR, không liên quan tới
-thay đổi.** Đừng sửa lặng, cũng đừng im. Một PR nhỏ riêng, có owner, hoặc ghi vào hàng
-đợi. Im lặng là lựa chọn của người chịu trách nhiệm về bug đó — thường không phải bạn.
+There is one case that is not a disagreement: **you find a real bug in the PR, unrelated to the
+change.** Do not fix it silently, and do not stay silent either. A separate small PR, with an owner, or
+add it to the queue. Silence is the choice of whoever is accountable for that bug - usually not you.
 
-## Vòng lặp đầy đủ
+## The full loop
 
-Đọc → plan (`references/plan-template.md`) → implement → verify
-(`references/stack-commands.md`) → **review** → bàn giao (`references/dod-checklist.md`).
-Review không phải điểm dừng; nó là điểm mà lỗi còn rẻ để sửa.
+Read → plan (`references/plan-template.md`) → implement → verify
+(`references/stack-commands.md`) → **review** → hand over (`references/dod-checklist.md`).
+Review is not a stopping point; it is the point where a bug is still cheap to fix.

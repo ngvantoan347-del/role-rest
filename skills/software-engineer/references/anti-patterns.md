@@ -109,7 +109,7 @@ design. Do not run one more command to "cure" a god object; you have to split it
 Two things here are real verification, and they come first because they are cheaper than the
 rest of the file:
 
-1. **`node scripts/proof.mjs`** - do your tests actually catch the bug.
+1. **`node scripts/falsify.mjs`** - do your tests actually catch the bug.
 2. **Think in N and in parallel**, section A. No command checks that.
 
 The full list of techniques and stopping points: `references/verification-techniques.md`.

@@ -76,7 +76,7 @@ Choose mutants from the **failure branch**, not from all the code. Removing a th
 await, inverting a condition, dropping a guard. Three to five mutants over what you just touched
 is enough; mutating an entire codebase is a different and much more expensive job.
 
-`node scripts/proof.mjs` does all of this mechanically, over every changed file.
+`node scripts/falsify.mjs` does all of this mechanically, over every changed file.
 
 ## 4. Run it, do not just read it
 

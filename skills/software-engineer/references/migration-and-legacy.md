@@ -1,277 +1,277 @@
 # Migration and Legacy
 
-Phần này cho những thay đổi không thể đảo ngược bằng `git revert`: đổi schema trên
-bảng lớn, thay một subsystem đang chạy, nâng dependency hàng chục major, hoặc sửa code
-mà không có test. Nội dung lọc theo đúng một tiêu chí: **những gì bị bỏ qua khi đang bị
-deadline** — freeze behavior, rollback switch, idempotent, đo usage trước khi gỡ.
+This section is for changes that cannot be undone with `git revert`: schema changes on large tables,
+replacing a running subsystem, upgrading a dependency by dozens of majors, or fixing code that has
+no tests. The content is filtered by exactly one criterion: **what gets skipped when you are under a
+deadline** - freeze behaviour, rollback switch, idempotency, measure usage before removing.
 
-Vì sao tách riêng: đây là loại thay đổi mà "chạy được ở máy mình" không có giá trị gì.
-Mọi quyết định ở đây đều xoay quanh một câu hỏi duy nhất: **khi nó hỏng lúc 3 giờ sáng
-thì đảo ngược bằng cách nào, mất bao lâu?**
+Why it is separate: this is the kind of change where "it runs on my machine" is worth nothing.
+Every decision here revolves around a single question: **when it breaks at 3am, how do you
+reverse it, and how long does it take?**
 
-## 1. Legacy không test: mua lưới an toàn rẻ nhất
+## 1. Untested legacy: buying the cheapest safety net
 
-Không có test không phải lý do để viết chậm hơn — nó là lý do để làm **đúng thứ tự**.
-Bắt đầu bằng "test ý tưởng của tôi" cho một hệ thống không ai hiểu là tự đặt mình vào
-chỗ của người hiểu nó.
+Having no tests is not a reason to go slower - it is a reason to get the **order** right.
+Starting with "test my idea of it" on a system nobody understands puts you in the position of
+the person who does understand it.
 
-| Bước | Làm gì | Vì sao |
+| Step | What to do | Why |
 | --- | --- | --- |
-| 1 | Chạy suite hiện có **y nguyên**, không sửa gì | Biết baseline đỏ hay xanh trước khi chạm. Suite đỏ sẵn có là phát hiện phải báo, không phải nợ của bạn |
-| 2 | Ghi lại test flaky: chạy 3–5 lần, đánh dấu cái nào không ổn định | Flaky không có tên sẽ bị blame nhầm vào thay đổi của bạn |
-| 3 | Chỉ disable flaky **kèm issue** và **kèm ngày** | Test bị tắt không ai chờ sẽ thành test không tồn tại |
-| 4 | **Characterisation test** quanh behavior đang chạy: gọi hàm với input thật, assert output hiện tại — kể cả output bạn cho là sai | Bạn chưa biết ý định gốc. Ghi lại hiện trạng trước khi thay đổi nó |
-| 5 | **Golden/snapshot** response thật cho endpoint hot, từ dữ liệu đã sanitize | Diff sau này là câu hỏi "cái gì đổi" trả lời bằng máy, không bằng trí nhớ |
-| 6 | Test regression cho **từng bug** sắp sửa lại | Bug đã xảy ra một lần sẽ xảy ra lại nếu không có test giữ |
+| 1 | Run the existing suite **untouched**, change nothing | Know whether the baseline is red or green before you touch it. A suite that is already red is a finding to report, not your debt |
+| 2 | Record the flaky tests: run 3–5 times, mark which ones are unstable | An unnamed flaky test gets blamed on your change |
+| 3 | Disable flaky tests only **with an issue** and **with a date** | A disabled test nobody waits on becomes a test that does not exist |
+| 4 | **Characterisation test** around the running behaviour: call the function with real input, assert the current output - including output you think is wrong | You do not know the original intent. Record the current state before you change it |
+| 5 | **Golden/snapshot** real responses for hot endpoints, from sanitised data | A later diff answers "what changed" by machine, not by memory |
+| 6 | A regression test for **each bug** you are about to fix | A bug that happened once happens again without a test holding it |
 
-**Freeze behavior trước khi đổi nó.** Đây là luật cứng: một PR không được vừa refactor vừa
-đổi behavior.
+**Freeze behaviour before changing it.** This is a hard rule: a PR must not both refactor and
+change behaviour.
 
-Vì sao: refactor đổi *cấu trúc*, behavior đổi *kết quả*. Khi cả hai nằm chung một diff,
-reviewer không có cách nào biết cái nào sinh ra regression — và test mới thì bạn tự viết
-cho cả hai phía, nên nó không bảo chứng gì. Tách ra thì mỗi cái một PR, mỗi cái một
-rollback.
+Why: a refactor changes *structure*, a behaviour change changes *results*. When both are in
+one diff, the reviewer has no way to know which one produced the regression - and the new
+tests you wrote cover both sides, so they guarantee nothing. Split them: one PR each, one
+rollback each.
 
-Test characterization viết sai thành test khẳng định bug: xử lý bằng cách viết rõ
-`// hiện tại bug — issue #123, sẽ đổi ở PR sau`. Còn lại, đổi luôn.
+A characterisation test written wrong becomes a test that asserts the bug: handle it by writing
+`// currently buggy - issue #123, will change in a later PR`. Otherwise, just change it.
 
-## 2. Đọc code lạ và tin đúng chỗ
+## 2. Reading unfamiliar code and trusting the right things
 
-`references/discovery-playbook.md` đã có trình tự 10 phút và mẫu evidence table. Ở đây chỉ
-bổ sung phần **legacy**: cách đọc khi code không có người giải thích.
+`references/discovery-playbook.md` already has the 10-minute sequence and the evidence table
+template. This only adds the **legacy** part: how to read when there is nobody to explain the code.
 
 ```bash
-git log --oneline -30 -- path/to/file        # nhịp sửa: sửa nhiều = vùng nóng
-git log -S "symbolName" --oneline             # symbol này vào/ra khi nào
-git log -S "endpoint/path" --oneline --all   # ai từng đụng contract này
-git blame -L 40,90 path/to/file               # ý định nằm ở commit, không nằm ở dòng code
-git log --format='%an %ad %s' --date=short -5 -- path/to/file   # người cuối đụng hot path
+git log --oneline -30 -- path/to/file        # edit rhythm: many edits = hot spot
+git log -S "symbolName" --oneline             # when did this symbol appear/disappear
+git log -S "endpoint/path" --oneline --all   # who has ever touched this contract
+git blame -L 40,90 path/to/file               # intent lives in the commit, not the line
+git log --format='%an %ad %s' --date=short -5 -- path/to/file   # last person on the hot path
 ```
 
-Tìm người cuối cùng đụng hot path rồi hỏi họ một câu. Câu trả lời giá trị hơn cả ngày đọc
-code, và tốn một tin nhắn.
+Find the last person to touch the hot path and ask them one question. That answer is worth more
+than a day of reading code, and it costs one message.
 
-**Code archaeology: đi từ triệu chứng vào trong, không đi từ file vào trong.**
+**Code archaeology: go from the symptom inwards, not from the file inwards.**
 
 ```text
-symptom hoặc một dòng log  ->  entry point  ->  nhánh gọi  ->  invariant nó đang giả định
+symptom or one log line  ->  entry point  ->  call branch  ->  the invariant it assumes
 ```
 
-Vì sao: đi từ symptom thì mọi thứ bạn đọc đều liên quan. Đi từ "file này có vẻ logic"
-nghĩa là đọc theo thứ tự alphabet, và bạn sẽ không bao giờ tới đúng chỗ.
+Why: starting from a symptom, everything you read is relevant. Starting from "this file looks
+logical" means reading in alphabetical order, and you will never arrive at the right place.
 
-Ba cái bẫy trong legacy, cả ba đều trông như lỗi của bạn:
+Three traps in legacy code, all of which look like your own bug:
 
-| Bẫy | Dấu hiệu | Xử lý |
+| Trap | Signal | Handling |
 | --- | --- | --- |
-| **Dead code vẫn được deploy** | Nhánh không bao giờ vào từ nguồn nào, nhưng còn feature flag trỏ tới, còn entry trong config, còn cron job gọi | Đọc config và flag registry trước khi kết luận "chết". Đã deploy = còn chạy. Xóa flag và deploy một lần trước khi xóa code |
-| **Behavior khớp bug report, không khớp doc** | Doc mô tả X, bug report nói Y, code làm Z | **Code là sự thật về hành vi**, bug report là bằng chứng người dùng đã gặp, doc chỉ là ý định. Sửa doc, và ghi lại sự lệch đó vào issue |
-| **Vendor workaround trông thừa** | Retry lặp, kiểm tra null hai lần, offset timezone một chỗ | `git blame` cho thấy nó vá cái gì. Xem issue/commit gốc. Xóa nó là tái tạo bug đã sửa từ 2 năm trước |
+| **Dead code that is still deployed** | A branch no source ever enters, but a feature flag still points at it, a config entry remains, a cron job still calls it | Read config and the flag registry before concluding "dead". Deployed = still running. Remove the flag and deploy once before removing the code |
+| **Behaviour matches the bug report, not the doc** | The doc describes X, the bug report says Y, the code does Z | **The code is the truth about behaviour**, the bug report is evidence a user hit it, the doc is only intent. Fix the doc, and record the discrepancy in an issue |
+| **A vendor workaround that looks redundant** | Repeated retry, a null check twice, a timezone offset in one place | `git blame` shows what it was patching. Look at the original issue/commit. Removing it reproduces a bug fixed 2 years ago |
 
-Không có commit giải thích, blame chỉ ra một dòng merge từ năm ngoái → đó là **quyết
-định đã mất**, không phải ý định. Ghi nó thành comment hoặc ADR ngay khi bạn hiểu, vì
-người sau sẽ không có cách nào biết.
+No commit explains it, blame points at a merge line from last year — that is a **lost
+decision**, not intent. Write it down as a comment or ADR the moment you understand it, because
+the next person will have no way to know.
 
-## 3. Strangler fig: thay từng phần, không viết lại
+## 3. Strangler fig: replace in parts, do not rewrite
 
 ```text
-client -> [seam / router] -> legacy impl   (mặc định)
+client -> [seam / router] -> legacy impl   (default)
                         \-> new impl        (flag: canary 1% -> 10% -> 100%)
 ```
 
-Nguyên tắc: **một boundary, một lần đổi traffic.**
+The principle: **one boundary, one traffic switch.**
 
-| Bước | Hành động | Rollback khi hỏng |
+| Step | Action | Rollback when it breaks |
 | --- | --- | --- |
-| 1 | Đặt seam ở ranh giới đã tồn tại: HTTP route, queue consumer, module interface | Xóa route mới, gỡ import |
-| 2 | Chạy **cả hai** impl trên shadow/canary, so kết quả | Không có side effect ở bước này |
-| 3 | Chuyển traffic theo tỷ lệ nhỏ, giữ feature flag | Bật lại flag: đổi lại trong giây |
-| 4 | Giữ legacy impl trong tree cho tới khi số liệu usage về 0 | Không còn đường lùi nếu đã xóa |
-| 5 | Gỡ legacy **một lần riêng**, sau khi có test coverage trên new impl | PR riêng, revert được |
+| 1 | Put the seam at an existing boundary: an HTTP route, a queue consumer, a module interface | Remove the new route, drop the import |
+| 2 | Run **both** impls on shadow/canary traffic, compare results | No side effects at this step |
+| 3 | Shift traffic in small percentages, keep the feature flag | Flip the flag back: a change within seconds |
+| 4 | Keep the legacy impl in the tree until usage numbers reach 0 | No way back once it is deleted |
+| 5 | Remove legacy **in its own PR**, after there is test coverage on the new impl | A separate PR, revertible |
 
-Flag phải tồn tại ở code và tắt được **không cần deploy**. Vì sao: nếu bật/tắt cần deploy,
-thì mỗi lần bật lại là một deploy nữa, và lúc 3 giờ sáng bạn sẽ không muốn deploy.
+A flag must live in code and be switchable off **without a deploy**. Why: if turning it on/off
+needs a deploy, then every re-enable is another deploy, and at 3am you do not want to deploy.
 
-**Big rewrite là failure mode mặc định.** Bốn lý do, đủ để bác bỏ nó ngay từ kế hoạch:
-không verify được từng phần (đến cuối mới biết đúng hay sai), không giao được sớm (sáu
-tháng không có gì chạy được để người khác dùng), mất kiến thức (người hiểu quirk biến mất
-giữa lúc bắt đầu và lúc viết xong), và diff không review được (PR 8000 dòng được merge vì
-không ai đọc nổi — tức là không có review nào).
+**A big rewrite is the default failure mode.** Four reasons, enough to reject it at the planning
+stage: you cannot verify any part until the end (you only learn whether it is right then), you cannot
+ship early (six months with nothing runnable for anyone else to use), you lose knowledge (the person
+who understood the quirk disappears between the start and the finish), and the diff is unreviewable
+(an 8000-line PR gets merged because nobody can read it - which means there was no review at all).
 
-Điều kiện để strangler fig hoạt động: **đường mới phải verify được một mình.** Nếu bạn
-không chạy được new impl mà không có legacy, thì bạn đang viết lại với tên khác.
+The condition for a strangler fig to work: **the new path must be verifiable on its own.** If
+you cannot run the new impl without the legacy one, you are rewriting under a different name.
 
-## 4. Expand-contract: đổi schema khi code cũ vẫn đang phục vụ traffic
+## 4. Expand-contract: changing schema while old code still serves traffic
 
-Vì sao `ALTER TABLE` trên bảng lớn, hot, là việc nguy hiểm: lock lâu tuỳ engine và
-phiên bản, và `ADD NOT NULL DEFAULT` cần full table rewrite. Trên bảng 200M dòng, "chạy
-nhanh" có thể là vài giờ downtime. Trên đúng bảng đó, một `ALTER` không lặp lại được là
-một migration không tồn tại.
+Why `ALTER TABLE` on a large, hot table is dangerous: the lock is long depending on engine and
+version, and `ADD NOT NULL DEFAULT` needs a full table rewrite. On a 200M-row table, "fast" can
+mean hours of downtime. On exactly that table, a non-repeatable `ALTER` is a migration that
+does not exist.
 
-Thứ tự chuẩn, mỗi bước là một lần deploy riêng và đảo ngược được:
+The standard order, each step a separate deploy and reversible:
 
-| Bước | Hành động | Vì sao đứng riêng |
+| Step | Action | Why it stands alone |
 | --- | --- | --- |
-| 1. **Expand** | Thêm cột mới nullable, hoặc cột mới có default | Additive, code cũ không biết là an toàn |
-| 2. **Backfill** | Job batched điền cột mới | Chạy nhiều lần được, không khóa bảng |
-| 3. **Dual-write** | Code mới ghi cả hai cột; đọc vẫn từ cột cũ | Reader chưa đổi nên không cần dữ liệu hoàn chỉnh ngay |
-| 4. **Switch read** | Đọc cột mới, bằng flag; đo diff với cột cũ | Có fallback nếu cột mới bị sót dữ liệu |
-| 5. **Contract** | Xóa cột cũ | Chỉ khi đọc đã về 0 ở cột cũ |
+| 1. **Expand** | Add a new nullable column, or a new column with a default | Additive, so old code not knowing about it is safe |
+| 2. **Backfill** | A batched job filling the new column | Can be run many times, does not lock the table |
+| 3. **Dual-write** | New code writes both columns; reads still come from the old column | The reader has not changed, so complete data is not needed yet |
+| 4. **Switch read** | Read the new column, behind a flag; measure the diff against the old column | There is a fallback if the new column missed data |
+| 5. **Contract** | Drop the old column | Only when reads on the old column are at 0 |
 
-**Rolling deploy = code cũ và code mới chạy cùng nhau hàng giờ.** Đây không phải rủi ro
-hiếm, đây là trạng thái bình thường. Vì vậy:
+**A rolling deploy = old code and new code running together for hours.** This is not a rare
+risk, this is the normal state. Therefore:
 
-- Reader phải chấp nhận cả hai shape cho tới khi mọi instance đã lên bản mới — nguyên tắc
-  chung ở `references/design-guide.md` mục "Tương thích ngược".
-- Deploy xong **không** đồng nghĩa migrate xong: cần một cửa sổ chờ đủ lâu để chắc không còn
-  instance cũ, rồi mới phá thứ chỉ instance cũ cần.
-- Row tạo sau khi deploy lại không có ở cột cũ. Rollback về code cũ là mất dữ liệu đó. Đây
-  là lý do dual-write tồn tại, và là lý do rollback sau bước 3 không còn rẻ.
+- Readers must accept both shapes until every instance is on the new version - the general rule
+  in `references/design-guide.md` under "Backward compatibility".
+- Finishing the deploy does **not** mean the migration is done: you need a waiting window long
+  enough to be sure no old instance remains, and only then break the things only old instances need.
+- Rows created after the deploy do not exist in the old column. Rolling back to old code loses
+  that data. This is why dual-write exists, and why rollback after step 3 is no longer cheap.
 
-Bước Contract không có đường lùi rẻ. Nói rõ điều đó trước khi làm, và đừng làm nó cùng PR
-với bước khác.
+The Contract step has no cheap way back. Say that out loud before doing it, and do not do it in
+the same PR as another step.
 
 ## 5. Data migration
 
-| Yêu cầu | Cụ thể | Vì sao |
+| Requirement | Concretely | Why |
 | --- | --- | --- |
-| **Idempotent** | Chạy lại hai lần cho cùng kết quả; điều kiện `WHERE ... IS NULL` hoặc `ON CONFLICT DO NOTHING` | Một migration chết giữa chừng sẽ được chạy lại. Không idempotent = phải khôi phục tay |
-| **Resumable** | Commit theo batch, lưu con trỏ, exit sạch | Job backfill chạy nhiều giờ; không muốn bắt đầu lại từ đầu |
-| **Batched** | Theo khoá chính, batch vài nghìn, `sleep` giữa các batch | Query không giới hạn giết connection pool và replication lag |
-| **Có kill switch** | Feature flag tắt job ngay | Cần dừng trong vài phút khi nó làm chậm production |
-| **Có rate limit** | Giới hạn theo batch/giây, giảm tự động khi lag tăng | Backfill cạnh tranh với traffic thật cho cùng một bảng |
-| **Báo tiến độ** | Log số row đã xử lý, tốc độ, ETA | Job 3 giờ không có tiến độ thì không ai dám để chạy |
-| **Validate** | So row count, checksum, và invariant nghiệp vụ trước/sau | "Xong" phải là so khớp, không phải là job kết thúc |
+| **Idempotent** | Running it twice gives the same result; `WHERE ... IS NULL` conditions or `ON CONFLICT DO NOTHING` | A migration that dies halfway will be run again. Not idempotent = manual recovery |
+| **Resumable** | Commit per batch, store a cursor, exit cleanly | A backfill job runs for hours; you do not want to restart from the beginning |
+| **Batched** | By primary key, batches of a few thousand, `sleep` between batches | An unbounded query kills the connection pool and replication lag |
+| **Has a kill switch** | A feature flag that stops the job immediately | You need to stop it within minutes when it is slowing production |
+| **Is rate limited** | Limit per batch/second, reducing automatically as lag grows | A backfill competes with real traffic for the same table |
+| **Reports progress** | Log rows processed, rate, ETA | Nobody dares leave a 3-hour job running with no progress |
+| **Validates** | Compare row count, checksum, and business invariants before/after | "Done" has to mean the numbers match, not that the job ended |
 
-**Dry run trên bản copy, không bao giờ thử trên production.** Đo thời gian, số row bị skip,
-và tỉ lệ lỗi — trên dữ liệu đã sanitize, không phải dữ liệu user thật.
+**Dry run on a copy, never test on production.** Measure the time, the rows skipped, and the
+error rate - on sanitised data, not real user data.
 
-Vì sao: lần chạy đầu tiên trên production là lần duy nhất bạn không thể quay lại, và nó
-chạy với dữ liệu lớn hơn, đồng thời, và chậm hơn bản copy. Câu "chắc là chạy được" là
-lý do đắt nhất trong cả file này.
+Why: the first run on production is the only one you cannot come back from, and it runs on more
+data, at the same time, and slower than the copy. "It'll probably work" is the most expensive
+sentence in this file.
 
-Khi hai shape phải cùng tồn tại lâu (tháng, quý):
+When two shapes have to coexist for a long time (months, quarters):
 
-- Định nghĩa **nguồn sự thật duy nhất** và ghi rõ nó ở đâu trong repo. Hai nguồn sống
-  cùng nhau là drift chờ đến ngày nó thành incident.
-- Nếu buộc phải đọc cả hai, đọc theo thứ tự ưu tiên rõ ràng và **log disagreement rate**.
-  Tỉ lệ đó là metric bạn đưa vào dashboard để biết khi nào an toàn để gỡ.
-- Feature flag tắt đường cũ phải là một config value đọc lập tức, không phải code path.
+- Define the **single source of truth** and write down where it lives in the repo. Two sources
+  of numbers living together is drift waiting for the day it becomes an incident.
+- If you are forced to read both, read in a clear precedence order and **log the disagreement rate**. That rate is the metric you put on a dashboard to know when it is safe to remove the old one.
+- The feature flag that disables the old path must be a config value read immediately, not a
+  code path.
 
-## 6. API versioning và tương thích client
+## 6. API versioning and client compatibility
 
-Phân loại trước khi viết bất kỳ dòng nào:
+Classify before writing a single line:
 
-| Thay đổi | Phân loại | Hành động |
+| Change | Classification | Action |
 | --- | --- | --- |
-| Thêm field mới, thêm endpoint, thêm query param tuỳ chọn | **Additive** | Ship được |
-| Đổi tên/xoá field, đổi kiểu, đổi semantics, thêm bắt buộc | **Breaking** | Cả hai shape trong suốt deprecation window, đo usage, rồi gỡ |
-| Đổi status code hoặc error shape | **Breaking** | Client cũ có thể đang dựa vào nó để hiển thị lỗi |
+| Adding a new field, a new endpoint, an optional query param | **Additive** | Shippable |
+| Renaming/deleting a field, changing a type, changing semantics, adding something required | **Breaking** | Both shapes during the deprecation window, measure usage, then remove |
+| Changing a status code or error shape | **Breaking** | Old clients may be relying on it to render errors |
 
-Nguyên tắc deprecation: **cái không được đo thì không tồn tại.** Endpoint bị đánh dấu
-deprecated mà không có metric theo `endpoint` và theo `user/client id` thì không bao giờ bị
-gỡ, chỉ bị dời sang backlog của năm sau.
+The deprecation principle: **what is not measured does not exist.** An endpoint marked
+deprecated with no metric by `endpoint` and by `user/client id` is never removed, only pushed
+into next year's backlog.
 
-Đo mức dùng cần cả hai: theo endpoint (còn ai gọi) và theo phiên bản client (ai chưa
-lên được bản mới). Con số thứ hai mới quyết định **mốc gỡ**, vì client cũ sẽ không tự
-lên.
+Measuring usage needs both: by endpoint (who is still calling) and by client version (who has
+not upgraded). The second number is what decides the **removal date**, because old clients will
+not upgrade on their own.
 
-**Client mà bạn không ép được lên** — mobile app đã cài trên máy người dùng, integration
-script trong cron của khách, browser cache và service worker:
+**Clients you cannot force to upgrade** - a mobile app already installed on user devices, an
+integration script in a customer's cron, a browser cache and a service worker:
 
-- Server phải chịu được client cũ **lâu hơn mức bạn muốn**.
-- Endpoint versioned (`/v1`, `/v2`) tách contract: `v1` được đóng băng, `v2` là nơi thay
-  đổi. Đây là lựa chọn khác với additive+deprecation — dùng khi contract đổi nhiều, không
-  phải khi thêm một field.
-- Sunset header + ngày cụ thể trong response, để client có thể tự cảnh báo và log lỗi.
-- Nếu không đo được usage, giữ cả hai vô thời hạn. Rẻ hơn một lần incident vì đã cắt
-  nhầm.
+- The server has to tolerate old clients **longer than you
+  want**.
+- Versioned endpoints (`/v1`, `/v2`) separate contracts: `v1` is frozen, `v2` is where change happens. This is a different choice from additive + deprecation - use it when the contract changes a lot, not when you add one field.
+- A Sunset header plus a concrete date in the response, so clients can warn themselves and log
+  an error.
+- If you cannot measure usage, keep both forever. Cheaper than one incident from cutting the
+  wrong thing.
 
-## 7. Nâng dependency và framework
+## 7. Upgrading dependencies and frameworks
 
-| Điều | Chuyện gì thật sự xảy ra |
+| Thing | What actually happens |
 | --- | --- |
-| Nhảy nhiều major trong một PR | Diff không review được và **không revert được**: revert sẽ cần biến về đúng set version cũ, mà bạn đã quên nó là gì |
-| Đi từng major | Mỗi bước là một PR nhỏ, review được, revert được. Chi phí cao hơn về số PR, rẻ hơn hàng bậc về rủi ro |
-| Codemod | Sinh ra diff hàng nghìn dòng **đúng về cú pháp, sai về ngữ nghĩa** |
-| Lockfile churn | Che mất thay đổi thật, hoặc chứa thay đổi thật mà không ai đọc |
+| Jumping many majors in one PR | An unreviewable and **non-revertable** diff: reverting needs you to get back to exactly the old version set, and you have forgotten what it was |
+| One major at a time | Each step is a small PR, reviewable, revertable. More expensive in PR count, an order of magnitude cheaper in risk |
+| A codemod | Produces a thousands-of-lines diff that is **syntactically correct and semantically wrong** |
+| Lockfile churn | Hides the real change, or contains a real change nobody reads |
 
-Về codemod: output sinh ra là **bản nháp cần review**, không phải kết quả. Dành thời
-gian đọc chỗ ngữ nghĩa đổi — lifecycle hook, error handling, dependency đổi hành vi mặc
-định. Đây là phần hay hỏng nhất. Nếu codemod chạm >~50 file, tách PR: phần cơ học một
-PR, phần sửa semantic một PR. Xem `references/testing-guide.md` — ở đây test đỏ sau codemod
-thường là tín hiệu thật, không phải thứ cần làm xanh bằng cách nới.
+On codemods: the generated output is a **draft that needs review**, not a result. Budget time to
+read the semantic changes - lifecycle hooks, error handling, dependencies whose default behaviour
+changed. That is the part that most often breaks. If a codemod touches >~50 files, split the PR: the
+mechanical part in one PR, the semantic fixes in another. See `references/testing-guide.md` - here a
+red test after a codemod is usually a real signal, not something to make green by loosening it.
 
-Phân biệt lockfile-only diff với diff thật — `npm ls <pkg>` cho biết dependency thật của
-dự án (không phải transitive), `git diff --stat -- <lockfile>` cho biết mức churn.
+Tell a lockfile-only diff apart from a real one - `npm ls <pkg>` shows the project's direct
+dependency (not the transitive ones), `git diff --stat -- <lockfile>` shows the churn.
 
-Lockfile-only = version của dependency **thật** không đổi, chỉ transitive đổi. Đó vẫn
-cần build + test + attention, nhưng không cần rà lại code. Ngược lại, khi manifest
-không đổi mà lockfile đổi hàng nghìn dòng: đây là security hoặc reproducibility, và
-cần chạy full suite chứ không chỉ typecheck.
+Lockfile-only means the versions of **real** dependencies did not change, only transitive ones.
+That still needs a build + test + attention, but it does not need a code re-read. Conversely,
+when the manifest does not change and the lockfile changes by thousands of lines: this is
+security or reproducibility, and it needs the full suite, not just a typecheck.
 
-Nâng framework lớn: chạy suite **trước** để có baseline, và có sẵn một branch để lấy
-output của suite cũ làm tham chiếu. Không có baseline thì mọi fail đều mơ hồ.
+For a large framework upgrade: run the suite **before** to get a baseline, and have a branch ready so
+you can take the old suite's output as a reference. Without a baseline every failure is ambiguous.
 
-## 8. Thay đổi xuyên nhiều runtime
+## 8. Changes spanning multiple runtimes
 
-Frontend TypeScript + service Go + migration SQL là **ba release train khác nhau**, có ba
-tốc độ deploy khác nhau. Vấn đề không phải kỹ thuật — vấn đề là thiết kế để không bao
-giờ có lúc cả ba bắt buộc phải đi cùng nhau.
+A TypeScript frontend + a Go service + SQL migrations are **three different release trains**
+with three different deploy speeds. The problem is not technical - the problem is designing so
+that there is never a moment when all three must move together.
 
-| Cơ chế | Cách dùng | Vì sao cần |
+| Mechanism | How to use it | Why it is needed |
 | --- | --- | --- |
-| **Additive trước** | Backend thêm field mới trước, frontend đọc sau | Frontend cũ không break; backend mới không phụ thuộc frontend |
-| **Expand-contract** | Cột mới trước, contract sau (mục 4) | SQL chạy một lần, code chạy nhiều lần — thứ tự ngược lại là bản deploy không bao giờ đồng bộ |
-| **Feature flag** | Đường cũ giữ nguyên sau khi đường mới lên | Ba runtime lên lệch nhau vẫn có một đường đi đúng |
-| **Compatibility matrix** | Bảng: phiên bản nào của A tương thích với B | Test matrix trở thành thứ có thật, thay vì giả định |
+| **Additive first** | The backend adds the new field first, the frontend reads it later | An old frontend does not break; the new backend does not depend on the frontend |
+| **Expand-contract** | New column first, contract later (section 4) | SQL runs once, code runs many times - the reverse order is a deploy that never converges |
+| **Feature flag** | The old path stays after the new path ships | Three runtimes out of step still have one correct path |
+| **Compatibility matrix** | A table: which version of A is compatible with B | A test matrix becomes a real thing instead of an assumption |
 
-Nguồn sự thật cho schema dùng chung: **một nơi sinh ra, không ai gõ tay.** Tạo type /
-schema từ một nguồn và phát tán (`codegen` từ schema, hoặc generated client từ
-OpenAPI). Vì sao: ba bản schema gõ tay của cùng một thứ drift trong khoảng một sprint,
-và lỗi xuất hiện ở runtime thay vì ở compile time.
+Source of truth for a shared schema: **one place generates it, nobody types it by hand.**
+Generate types/schema from one source and distribute them (`codegen` from the schema, or a
+generated client from OpenAPI). Why: three hand-written schemas of the same thing drift within
+about a sprint, and the error shows up at runtime instead of at compile time.
 
-Định nghĩa rõ ba câu, viết vào plan, trước khi code:
+Define these three clearly, write them into the plan, before any code:
 
-1. **Ai deploy trước** và cái gì phải tồn tại để nó không break.
-2. **Phiên bản nào là hợp lệ** trong khoảng thời gian hai runtime lệch nhau — dài bằng
-   số deploy dài nhất, không phải số phút bạn đo được.
-3. **Điều kiện gỡ** cờ: metric nào về 0 thì xóa đường cũ, và ai xóa.
+1. **Who deploys first**, and what has to exist for that not to break.
+2. **Which versions are valid** during the window where the two runtimes are out of step - as long as the longest deployment, not the number of minutes you measured.
+3. **The removal condition**: which metric reaching 0 lets you delete the old path, and who
+   deletes it.
 
-## 9. Dấu hiệu migration đi sai
+## 9. Signs a migration is going wrong
 
-Đây là những dấu hiệu không sửa được bằng cách chạy thêm một feature flag.
+These are the signs you cannot fix by adding one more feature flag.
 
-| Dấu hiệu | Nghĩa là gì | Cách thoát cụ thể |
+| Sign | What it means | Concrete way out |
 | --- | --- | --- |
-| **Rollback cần can thiệp dữ liệu** | Đã vượt bước contract, hoặc dual-write đã dừng mà contract đã xong | Dừng mọi deploy mới. Xác định bước expand-contract đang dở. Khôi phục khả năng đọc bằng công việc chuyển dữ liệu **một chiều, có script, chạy lại được**, không phải sửa tay. Ghi mọi row đã tay vào script |
-| **Hai nguồn sự thật cùng sống trong production** | Ai đó đã bắt đầu ghi vào chỗ thứ hai khi đang cố di chuyển | Chọn một nguồn, ghi tên nó vào schema comment và vào doc. Đường còn lại thành read-only projection, không phải nguồn thứ hai có thể ghi |
-| **Cờ "tạm" đã 8 tháng** | Cửa sổ deprecation không bao giờ đóng; phần cũ giờ là đường chính | Đặt ngày Xóa ngay khi tạo cờ, gắn issue và milestone. Nếu quá hạn, đổi cờ thành owner + deadline chứ không phải cờ nữa |
-| **Không ai gọi tên được ai sở hữu đường legacy** | Không ai chịu trách nhiệm; nó sẽ không bao giờ tự biến mất | Gắn owner bằng tên. Nếu tìm không ra owner, coi đường cũ là production system cần capacity và on-call |
-| **Deploy phải canh giờ thủ công** | Đang có coupling ngầm giữa runtime | Chạy lại deploy sai thứ tự một lần. Nếu hỏng, coupling đó là thật: chuyển sang additive + flag |
-| **Số liệu "migration xong" là "job đã kết thúc"** | Đang đo completion, không đo correctness | So row count và checksum trước/sau. Dữ liệu sai mà job exit 0 là incident, không phải hoàn thành |
-| **Không còn test nào chạm vào đường cũ** | Cờ tắt được, nên đường cũ đã chết | Đây là điều kiện để gỡ. Không phải vấn đề |
+| **Rollback needs data intervention** | You passed the contract step, or dual-write stopped while the contract was already done | Stop all new deploys. Identify which expand-contract step is half-done. Restore readability with **one-way, scripted, re-runnable** data movement, not manual fixes. Record every manually handled row in the script |
+| **Two sources of truth live in production** | Someone started writing to the second place while trying to migrate | Pick one source, write its name into the schema comment and into the doc. The remaining path becomes a read-only projection, not a second writable source |
+| **A "temporary" flag is 8 months old** | The deprecation window never closes; the old path is now the main path | Set the removal date when you create the flag, attach an issue and a milestone. If it is overdue, convert the flag into an owner + deadline instead |
+| **Nobody can name who owns the legacy path** | Nobody is accountable; it will never remove itself | Attach an owner by name. If you cannot find one, treat the old path as a production system that needs capacity and on-call |
+| **Deploys have to be hand-timed** | There is hidden coupling between runtimes | Re-run the deploy in the wrong order once. If it breaks, the coupling is real: switch to additive + flag |
+| **The "migration is done" number is "the job finished"** | You are measuring completion, not correctness | Compare row count and checksum before/after. Wrong data with a job exiting 0 is an incident, not a completion |
+| **No test touches the old path any more** | The flag is switchable, so the old path is dead | This is the condition for removal. Not a problem |
 
-## Khi nào dừng lại và hỏi
+## When to stop and ask
 
-Hỏi trước khi chạm, với câu hỏi cụ thể và kèm khuyến nghị:
+Ask before you touch anything, with a specific question and a recommendation attached:
 
-- Migration không rollback rẻ: `DROP`, `NOT NULL` lên cột cũ, đổi tên cột đang được ghi.
-- Backfill trên bảng lớn, hot, không có batch limit.
-- Xóa endpoint đang có traffic.
-- Nâng dependency lớn ở cùng thời điểm với thay đổi kiến trúc.
-- Hai người đang sửa cùng một seam migration.
+- A migration with no cheap rollback: `DROP`, `NOT NULL` on an old column, renaming a column that is being written.
+- A backfill on a large, hot table with no batch limit.
+- Deleting an endpoint that has traffic.
+- A large dependency upgrade at the same time as an architecture change.
+- Two people editing the same migration seam.
 
-## Câu hỏi tự kiểm trước khi bàn giao
+## Self-check questions before handing over
 
-| Câu hỏi | Trả lời không trả lời được = chưa xong |
+| Question | No answer = not done |
 | --- | --- |
-| Nếu hỏng lúc 3 giờ sáng, tắt bằng cách nào, ai làm? | Rollback chưa nghĩ tới |
-| Migration này chạy lần hai có an toàn không? | Chưa idempotent |
-| Tôi đang ở bước nào của expand-contract, và bước trước nó đã đo chưa? | Đang nhảy cóc |
-| Client nào chưa lên được bản mới, và tôi đo ra bao nhiêu? | Đang cắt nhầm |
-| Đường cũ còn được gọi bởi ai? | Chưa gỡ được |
-| Mô tả ngắn gọn cái đã đổi, tách khỏi cái chỉ được refactor | PR chưa tách |
+| If it breaks at 3am, how do you turn it off, and who does it? | The rollback was never thought through |
+| Is it safe to run this migration a second time? | Not idempotent yet |
+| Which step of expand-contract am I on, and has the previous one been measured? | Frog-hopping |
+| Which clients have not upgraded, and how many did I measure? | Cutting the wrong thing |
+| Who is still calling the old path? | Not removable yet |
+| A short description of what changed, separated from what was only refactored | The PR is not split |
 
-Bất kỳ dòng nào trong bảng trên không có câu trả lời bằng lệnh và số liệu thì việc đó
-**chưa verify**. Và đó là phần lớn việc ở đây — không phải viết code.
+Any row in that table without an answer backed by a command and numbers is **unverified**. And
+that is most of the work here - not writing code.
