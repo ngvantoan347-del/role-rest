@@ -1,0 +1,43 @@
+name: demo
+
+# The README leads with a claim about what falsify.mjs finds. This workflow exists so that claim
+# cannot rot: it runs the same script a stranger is told to run, on every push. A demo that only
+# worked when it was written is worse than no demo, because it costs a stranger their afternoon
+# before they decide the repo is not worth using.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Exits 0 by design. The verifier exits 1 inside it - that is the finding, not a failure -
+      # so a non-zero exit here means the demo itself broke, which is what should fail CI.
+      - name: Run the README demo
+        run: ./demo.sh
+
+  # The demo proves falsify.mjs works on a fixture. It does not prove falsify.mjs still works,
+  # because the fixture is small and the tests are the thing that has to keep up.
+  suites:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm test
+      - run: npm run spec
+      - run: npm run catalog
+      - run: npm run lint

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: The demo in the README is not reproducible for me
+    url: https://github.com/ngvantoan347-del/role-rest/issues/new?labels=bug&title=demo+not+reproducible
+    about: Start there rather than filing a new issue - it routes to the same place with the label already set.

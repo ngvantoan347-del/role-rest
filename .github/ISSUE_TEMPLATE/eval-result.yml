@@ -1,0 +1,66 @@
+name: Eval result
+description: You ran the A/B harness and want to add or contradict a finding.
+labels: ["evaluation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        `eval-runs/RESULTS.md` states three limits on its own evidence: one model, one run per
+        arm, and no comparison against a competing skill. Reproducing or breaking any of those
+        is the most useful thing you can bring.
+
+  - type: dropdown
+    id: which
+    attributes:
+      label: What are you reporting?
+      options:
+        - A reproduction of the published result
+        - A result that contradicts it
+        - A run on a different model
+        - A run with N repeats per arm, to estimate variance
+        - A comparison against a competing skill
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Model and version
+      placeholder: claude-sonnet-4-5-20250929
+    validations:
+      required: true
+
+  - type: input
+    id: case
+    attributes:
+      label: Which case, or a new one?
+      description: The four published cases are in `skills/software-engineer/tests/evals/evals.json`.
+      placeholder: retry-loop-regresses-on-zero, or a description of your new case
+    validations:
+      required: true
+
+  - type: textarea
+    id: method
+    attributes:
+      label: How did you run it?
+      description: |
+        Include the commands, the repeats per arm, and whether the fixtures were edited.
+        A single run per arm cannot distinguish a real difference from noise.
+    validations:
+      required: true
+
+  - type: textarea
+    id: finding
+    attributes:
+      label: What did you observe?
+      description: |
+        State it as: did the with-skill arm find any bug the baseline missed? Did it add a
+        verification step? Both are numbers, and both were zero-and-3-of-4 here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Raw output
+      description: Paste the transcripts, or a link if you forked and committed them.

@@ -19,7 +19,6 @@ export const here = dirname(fileURLToPath(import.meta.url))
 export const SCRIPTS = join(here, "..", "scripts")
 export const VERIFY = join(SCRIPTS, "verify.mjs")
 export const SMELLS = join(SCRIPTS, "smells.mjs")
-export const PROOF = join(SCRIPTS, "proof.mjs")
 export const FALSIFY = join(SCRIPTS, "falsify.mjs")
 export const CI = join(SCRIPTS, "ci.mjs")
 

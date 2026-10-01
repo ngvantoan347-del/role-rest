@@ -1,9 +1,17 @@
 # software-engineer
 
+[![skills.sh](https://img.shields.io/badge/skills.sh-directory-111111)](https://skills.sh)
+[![spec](https://img.shields.io/badge/SKILL.md-agent%20skills%20format-f59e0b)](skills/software-engineer/tests/spec.mjs)
+[![evals](https://img.shields.io/badge/A%2FB-4%20tasks%2C%20published%20results-111111)](eval-runs/RESULTS.md)
+
 **An agent saying "tests pass" costs it nothing to say. Nothing in that same session can
 contradict it.**
 
 This repo makes that claim falsifiable.
+
+```bash
+./demo.sh    # builds a real repo, runs a real suite, prints what it finds. No install.
+```
 
 ```
 $ node skills/software-engineer/scripts/falsify.mjs
@@ -12,20 +20,28 @@ falsify  /srv/checkout-service
 
   baseline: suite green. Now breaking it on purpose.
 
-  caught   swallow-error    src/checkout.js            a build that reports failure as success
-  SURVIVED unguard          src/checkout.js            a guard clause that no longer guards
+  caught   swallow-error 1/3  src/checkout.js:2      a failure reported as success
+  SURVIVED swallow-error 2/3  src/checkout.js:4      a failure reported as success
+  SURVIVED unguard 2/3        src/checkout.js:4      a guard clause that no longer guards
+  caught   unguard 1/3        src/checkout.js:2      a guard clause that no longer guards
 
-  1 break(s) survived in 1 file(s). That code has no test.
+  4 break(s) survived in 1 file(s). Those lines have no test.
 
-    src/checkout.js  unguard
+    src/checkout.js
+      :4     swallow-error, unguard
 ```
 
-`npm test` was green in both cases. The suite cannot tell the difference between "the
-insufficient-balance guard is tested" and "someone wrote it and nothing checks it" - because a test
-that never exercises a branch and a test that does are both green.
+`npm test` was green. The suite cannot tell the difference between "the insufficient-balance guard
+is tested" and "someone wrote it and nothing checks it", because a test that never exercises a
+branch and a test that does are both green.
 
-`falsify.mjs` removes the throws, the awaits, inverts a comparison, drops a guard, and requires
-the suite to go red for each. A break that survives is a branch nobody is testing.
+`falsify.mjs` deletes one throw, one guard, one comparison, one await - **one line at a time** -
+and requires the suite to go red for each. A break that survives is a line nobody is testing, and
+the report names the line.
+
+Applying every mutation at once would be faster and would lie: one covered guard would stand in
+for the two untested ones next to it and the file would come back clean. That is the more
+flattering failure, and the more common one.
 
 ## Why this is not just Stryker
 
@@ -38,6 +54,7 @@ answering.
 | Setup | config file, per language | none |
 | Scope | the whole codebase, on demand | the diff you are reviewing |
 | Time | minutes | about a second per break |
+| Output | one number | the file and **line** with no test |
 | Survives an agent's attention | no | it runs in the same loop as the answer |
 
 An agent will run `npm test`. It will not run Stryker. That gap is the entire opportunity.
@@ -100,9 +117,11 @@ node skills/software-engineer/scripts/ci.mjs        # all three, one command
 ```
 
 **`falsify.mjs`** - the one an agent will not run on its own. Breaks the changed code the way a
-bug would, then requires the suite to go red. Groups survivors by file so the report is
-actionable, and restores the working tree byte for byte - it verifies it did. A falsification tool
-that corrupts uncommitted work is worse than none.
+bug would, one line at a time, then requires the suite to go red. Reports survivors by file and
+line, because that is the only version a reader can act on without going back to grep. States its
+own reach, so a clean report on a file full of branches is not mistaken for a clean bill. Restores
+the working tree byte for byte, and verifies it did - a falsification tool that corrupts
+uncommitted work is worse than none.
 
 **`verify.mjs`** - detects the project's real gates from its own config (`package.json`,
 `Makefile`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `mvnw`, and friends) and runs them. Reads
@@ -150,6 +169,8 @@ actually goes at scale:
 ## Contents
 
 ```
+demo.sh                                one command, reproduces the claim above
+CONTRIBUTING.md                        the two things a first PR here gets wrong
 skills/
 ├── index.json                          HTTP catalog manifest
 └── software-engineer/
@@ -192,7 +213,7 @@ skills/
 ## Developing on this repo
 
 ```bash
-npm test          # 69 tests across 4 suites
+npm test          # 75 tests across 4 suites
 npm run gate      # the skill's own gates, run on itself
 npm run spec      # SKILL.md satisfies the Agent Skills format
 npm run catalog   # skills/index.json matches disk, all references resolve

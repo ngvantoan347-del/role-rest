@@ -1,0 +1,41 @@
+name: False positive
+description: A check fired on code that is correct. These matter more than misses.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A scanner that cries wolf gets disabled by the team it was meant to help, and then
+        nothing catches anything. So this is the highest-value report you can file here.
+
+  - type: input
+    id: rule
+    attributes:
+      label: Rule id
+      description: The id printed in the finding, e.g. `swallowed-exception` or a custom one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: code
+    attributes:
+      label: The code that was flagged
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is the flag wrong?
+      description: What makes this code correct in a way the rule cannot see?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suppression
+    attributes:
+      label: What inline suppression did you use, if any?
+      description: |
+        The escape hatch is `smells:allow <rule-id> -- <reason>`. An allow with no reason is
+        itself reported, deliberately. Paste what you wrote.

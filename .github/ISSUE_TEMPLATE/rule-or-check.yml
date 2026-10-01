@@ -1,0 +1,52 @@
+name: Rule or check request
+description: A failure you want prevented, and the check that would prevent it.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every rule in this repo carries the failure it prevents, so please lead with the failure.
+        "This is best practice" is not a reason, and it will not survive review here.
+
+  - type: textarea
+    id: failure
+    attributes:
+      label: What failure does this prevent?
+      description: The concrete bad outcome. Not the practice, the outcome.
+      placeholder: |
+        A PR that skips the migration step ships a column the backfill never writes,
+        and the error surfaces weeks later on the wrong table.
+    validations:
+      required: true
+
+  - type: textarea
+    id: check
+    attributes:
+      label: What check would catch it?
+      description: |
+        If it is mechanical, name the rule id you would add to `smells.mjs`. If it needs
+        judgment, say so plainly - that belongs in a reference file, not in a scanner.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: What do you do about it today?
+      description: If the answer is "a reviewer remembers to look", that is the case this repo is for.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Is this mechanical or judgment?
+      options:
+        - Mechanical - a pattern, and it should fail a gate
+        - Judgment - no tool can catch it, it needs a written rule
+    validations:
+      required: true
+
+  - type: input
+    id: language
+    attributes:
+      label: Language or ecosystem
+      placeholder: TypeScript, Python, Go, ...

@@ -2,17 +2,26 @@
   "name": "role-rest",
   "private": true,
   "type": "module",
-  "description": "An engineering discipline skill for AI coding agents: evidence over vibes, real gates, monorepo and enterprise scope.",
+  "description": "Verification discipline for AI coding agents. Makes 'tests pass' falsifiable: breaks your code the way a bug would and requires the suite to catch it.",
   "keywords": [
     "agent-skills",
+    "agent-skill",
     "opencode",
     "claude-code",
     "codex",
     "cursor",
+    "gemini-cli",
     "skills",
+    "skills-sh",
     "software-engineering",
     "code-review",
-    "monorepo"
+    "testing",
+    "mutation-testing",
+    "falsification",
+    "verification",
+    "monorepo",
+    "multi-tenant",
+    "ci"
   ],
   "license": "MIT",
   "scripts": {
