@@ -88,9 +88,12 @@ actually goes at scale:
 
 ## Scripts
 
-Two dependency-free Node scripts ship with the skill. The agent runs them, and so can you.
+Three dependency-free Node scripts ship with the skill. The agent runs them, and so can you.
 
 ```bash
+# all three gates, one command
+node skills/software-engineer/scripts/ci.mjs
+
 # discover this project's real typecheck / lint / test / build commands and run them
 node skills/software-engineer/scripts/verify.mjs
 
@@ -99,6 +102,9 @@ node skills/software-engineer/scripts/verify.mjs --changed --jobs 4
 
 # scan the diff for the mechanical residue of vibe coding
 node skills/software-engineer/scripts/smells.mjs --changed --base origin/main
+
+# do your tests actually catch the break?
+node skills/software-engineer/scripts/proof.mjs
 ```
 
 **`verify.mjs`** detects the project's real gates from its own config - `package.json`,
@@ -115,8 +121,17 @@ swallowed exceptions, disabled tests, type and lint suppressions, stub functions
 code, unresolved merge conflicts, unsafe deserialization, disabled TLS verification, shell
 injection, string-built SQL, and non-deterministic tests.
 
-Both read `.software-engineer.json` at the repo root, so a company centralises its own gates
-and rules in a file that gets reviewed like anything else:
+**`proof.mjs`** is the one an agent will not run on its own. It breaks the changed code the way a
+bug would - removes the throws, the awaits, inverts a comparison, drops a guard - then requires
+the suite to go red. A mutation that survives is a branch with no test, usually the branch you
+just touched. This repo found its own gaps with it: `proof.mjs` had an untested "nothing to
+prove" path, and it reported one surviving mutation in `ci.mjs`.
+
+**`ci.mjs`** runs all three and names which gate owns which failure, because "exit 1" from three
+scripts tells you nothing about where to look.
+
+All three read `.software-engineer.json` at the repo root, so a company centralises its own
+gates and rules in a file that gets reviewed like anything else:
 
 ```json
 {
@@ -150,14 +165,15 @@ holes that come from intent - are found by reading.
 skills/
 ├── index.json                          HTTP catalog manifest
 └── software-engineer/
-    ├── SKILL.md                        the discipline: tiers, loop, non-negotiables
+    ├── SKILL.md                        the discipline: tiers, ladder, escalation
     ├── references/                     loaded on demand, not on activation
+    │   ├── verification-techniques.md  the ladder: prove-it-red, delete-and-observe, mutation
     │   ├── discovery-playbook.md       reading an unfamiliar repo, finding seams
     │   ├── enterprise-standards.md     CODEOWNERS, company rules, ADRs, branch protection
-    │   ├── stack-commands.md           real gates per ecosystem
+    │   ├── stack-commands.md           gates for the ecosystems verify.mjs has no detector for
     │   ├── ci-integration.md          wiring the scripts into a pipeline, exit codes
     │   ├── plan-template.md            T2/T3/T4 plan formats, plan-drift handling
-    │   ├── design-guide.md             boundaries, contracts, data, migrations, security
+    │   ├── design-guide.md             boundaries, contracts, data shapes, security
     │   ├── scale-and-architecture.md   monorepo, services, events, multi-tenant, rollout
     │   ├── migration-and-legacy.md     untested code, strangler fig, expand-contract
     │   ├── compliance-and-data.md      PII, authorization, audit trail, retention, SBOM
@@ -167,13 +183,20 @@ skills/
     │   ├── review-playbook.md          reviewing a change, self-review before handoff
     │   └── dod-checklist.md            Definition of Done + handoff template
     ├── scripts/
+    │   ├── ci.mjs                      all three gates, one command
     │   ├── verify.mjs                  detect and run the project's real gates
-    │   └── smells.mjs                  audit a diff for mechanical debt
+    │   ├── smells.mjs                  audit a diff for mechanical debt
+    │   └── proof.mjs                   mutate the change, require the suite to catch it
     └── tests/
         ├── harness.mjs                 temp-repo fixtures and assertions
-        ├── verify.test.mjs             17 tests for verify.mjs
-        ├── smells.test.mjs             23 tests for smells.mjs
         ├── run.mjs                     runs every suite
+        ├── verify.test.mjs             tests for verify.mjs
+        ├── smells.test.mjs             tests for smells.mjs
+        ├── proof.test.mjs              tests for proof.mjs, including tree restoration
+        ├── ci.test.mjs                 tests for ci.mjs
+        ├── eval.mjs                    A/B harness against a no-skill baseline
+        ├── fixture.mjs                 materialise an eval case's fixture repo
+        ├── evals/evals.json            the cases and their assertions
         ├── spec.mjs                    SKILL.md vs the Agent Skills format
         └── catalog.mjs                 manifest and cross-reference integrity
 ```
@@ -181,7 +204,8 @@ skills/
 ## Developing on this repo
 
 ```bash
-npm test          # 40 tests across both scripts
+npm test          # 68 tests across 4 suites
+npm run gate      # the skill's own gates, run on itself
 npm run spec      # SKILL.md satisfies the Agent Skills format
 npm run catalog   # skills/index.json matches disk, all references resolve
 npm run lint      # smells.mjs scanning this repo, strict, zero-warning budget
@@ -191,6 +215,25 @@ npm run lint      # smells.mjs scanning this repo, strict, zero-warning budget
 anywhere** - it is simply never listed, so the repo looks healthy and the person installing it
 gets silence. That failure is invisible to every other check in this file, which is exactly
 why it needs its own.
+
+### Language
+
+Everything committed here is in English, including the discussion inside the skill. Vietnamese
+is fine in issues and pull requests; it does not belong in the files.
+
+## Does it actually help?
+
+A/B runs are committed in `eval-runs/`, with `RESULTS.md` as the write-up. The short version: on
+four fixture tasks the skill found **no bug the baseline missed** - both arms independently found
+the same missing backoff, the same `retries: 0` fall-through, the same IDOR. What the skill added
+was one extra verification step, and that step was usually the difference between a suspicion and
+a demonstration.
+
+That is a narrower claim than "be a better engineer", and it is the one this repo now ships.
+`proof.mjs` exists because that step is the one measured to be absent without prompting.
+
+Read `RESULTS.md` before adopting it, including the limits: one model, one run per arm, and no
+comparison against a competing skill.
 
 ## Contributing
 

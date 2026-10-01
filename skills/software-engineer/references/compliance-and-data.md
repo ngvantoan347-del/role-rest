@@ -1,293 +1,305 @@
 # Compliance and Data
 
-Các quyết định kỹ thuật mà sau nài ai đó sẽ phải **chứng minh bằng code**, không phải
-bằng lời. Phân loại dữ liệu, audit trail, quyền truy cập, retention, provenance của
-dependency, và các câu hỏi phải trả lời trước khi merge.
+The engineering decisions that later somebody will have to **prove with code**, not with
+words. Data classification, audit trail, access control, retention, dependency provenance,
+and the questions to answer before merging.
 
-Vì sao tồn tại: chỉ số chấp nhận rủi ro lớn nhất trong sản phẩm là *"chúng tôi có audit
-trail"*. Khi có incident, hoặc khi khách hàng hỏi, câu trả lời duy nhất có giá trị là
-artefact — dòng log, config, commit — chứ không phải policy PDF. Thứ không hiện diện trong
-hệ thống thì không tồn tại, và điều đó đúng cho compliance.
+Why this exists: the biggest risk acceptance number in most products is *"we have an audit
+trail"*. When there is an incident, or when a customer asks, the only answer worth anything
+is the artefact - a log line, a config, a commit - not a policy PDF. What is not present in
+the system does not exist, and that is true for compliance too.
 
-**Control không được implement trong code thì không phải control.** "Mọi thao tác đều được
-ghi log" là ý định. Nó thành control khi log chạy, có đủ field, giữ lâu đúng hạn, và đã
-có người đọc nó. Việc của kỹ sư là làm cho bằng chứng tồn tại — không phải để làm cho tài
-liệu trông đúng. Mọi mục dưới đây đều hướng về việc đó.
+**A control that is not implemented in code is not a control.** "Every action is logged" is
+an intention. It becomes a control when the log runs, has the right fields, is retained for
+the right period, and somebody reads it. The engineer's job is to make the evidence exist -
+not to make the documentation look right. Everything below points at that.
 
-Phần an toàn ở tầng code (authN/authZ, validate input, secret) đã nằm ở mục Security của
-`references/design-guide.md`. Ở đây là phần cần hệ thống, chính sách, và bằng chứng.
+The code-level safety part (authN/authZ, input validation, secrets) is in the Security
+section of `references/design-guide.md`. What is here needs a system, a policy, and evidence.
 
-## 1. "Compliant" nghĩa là gì khi vận hành
+## 1. What "compliant" means in operations
 
-Định nghĩa mà team kỹ thuật nên dùng: một control **đã có** khi bạn chỉ ra được nó sống ở
-đâu, và có bằng chứng nó đã chạy. Ba chỗ bằng chứng có thể nằm, theo thứ tự độ tin cậy
-tăng dần:
+The definition an engineering team should use: a control **exists** when you can point to
+where it lives and show evidence that it has run. Evidence can live in three places, in
+increasing order of trust:
 
-- **Code** — kiểm tra authZ ở đúng chỗ, chạy trong mọi request.
-- **Config** — giá trị có hiệu lực, đọc được, không phải giá trị mặc định mà chưa ai đổi.
-- **Run log** — bằng chứng nó đã chạy, có timestamp, do chính hệ thống sinh ra.
+- **Code** - the authZ check in the right place, running on every request.
+- **Config** - the value in effect, readable, not a default nobody has changed.
+- **Run log** - proof that it ran, timestamped, produced by the system itself.
 
-Bảng dưới không phải tour khung pháp lý. Nó trả lời câu duy nhất kỹ sư thực sự gặp: *"cụ
-thể thì phải có artefact gì trong repo của tôi?"*
+The table below is not a tour of a legal framework. It answers the only question an engineer
+actually hits: *"what artefacts exactly do I need in my repo?"*
 
-| Khung | Chủ đề mà bạn phải có bằng chứng | Artefact trong hệ thống |
+| Framework | What you need evidence for | Artefact in the system |
 | --- | --- | --- |
-| SOC 2 | Truy cập có kiểm soát, thay đổi có người review | authZ ở mọi route, config SSO/MFA, `CODEOWNERS`, log đăng nhập và thay đổi quyền |
-| ISO 27001 | Kiểm soát đã định nghĩa, hoạt động có ghi | risk register, access review định kỳ có dấu vết, restore đã test |
-| HIPAA | Bảo vệ PHI | encryption at rest + in transit, log truy cập từng record PHI, hợp đồng với bên xử lý dữ liệu |
-| GDPR | Quyền của data subject | export / delete / anonymise theo id, record of processing, thời hạn đáp ứng |
-| PCI DSS | Dữ liệu thẻ không chạm hệ thống của bạn | không lưu PAN/CVV ở đâu, tokenization, log truy cập secret vault, tách network |
+| SOC 2 | Controlled access, reviewed changes | authZ on every route, SSO/MFA config, `CODEOWNERS`, login and permission-change logs |
+| ISO 27001 | Defined controls, recorded operation | risk register, periodic access review with a trail, tested restore |
+| HIPAA | PHI protection | encryption at rest + in transit, per-record PHI access logs, agreements with data processors |
+| GDPR | Data subject rights | export / delete / anonymise by id, record of processing, response deadlines |
+| PCI DSS | Card data never touches your systems | where PAN/CVV are not stored, tokenization, secret vault access logs, network segmentation |
 
-Vì sao: một dòng bạn không map được sang file nào mình sở hữu là khoảng trống **của bạn**,
-và nói ra sớm thì rẻ hơn nhiều lần so với lúc audit.
+Why: a line you cannot map to a file you own is **your** gap, and saying so early costs
+orders of magnitude less than at audit time.
 
-Đừng tự suy ra nghĩa vụ pháp lý từ bảng này. Nó là bản dịch sang ngôn ngữ kỹ thuật; câu
-hỏi hợp pháp là câu hỏi của legal và security, không phải của bạn.
+Do not derive legal obligations from this table. It is a translation into engineering
+language; the legal question belongs to legal and security, not to you.
 
-## 2. Phân loại dữ liệu tại biên
+## 2. Classifying data at the boundary
 
-Phân loại trước khi ghi, không phải sau khi đã có vài triệu row.
+Classify before you write, not after you already have a few million rows.
 
-| Lớp | Ví dụ | Phải có |
+| Class | Examples | Must have |
 | --- | --- | --- |
-| Public | docs, marketing page, giá công khai | Không có yêu cầu bảo mật. Vẫn không để input của user đi thẳng ra giao diện. |
-| Internal | feature flag, log ứng dụng không chứa PII, ticket nội bộ | Không lộ ra ngoài. Retention đã định nghĩa. Không dùng làm dữ liệu test. |
-| Confidential | hợp đồng, giá nội bộ, hồ sơ ứng viên | authZ thật ở server, encryption khi truyền, log truy cập, không đưa vào log ứng dụng |
-| Regulated PII | email, địa chỉ, số điện thoại, dữ liệu sức khoẻ, dữ liệu thẻ | Tất cả mục trên, **cộng**: retention theo lớp, đường anonymise/export/delete, audit trail, masking ở mọi log |
+| Public | docs, marketing pages, public pricing | No security requirement. Still do not pass user input straight to the UI. |
+| Internal | feature flags, application logs without PII, internal tickets | Does not leave the org. Retention is defined. Not used as test data. |
+| Confidential | contracts, internal pricing, applicant records | Real authZ on the server, encryption in transit, access logs, not in application logs |
+| Regulated PII | email, address, phone number, health data, card data | All of the above, **plus**: retention per class, an anonymise/export/delete path, audit trail, masking in every log |
 
-Phân loại phải **sống trong schema**, không sống trong wiki:
+Classification must **live in the schema**, not in a wiki:
 
-- Kiểu riêng cho trường nhạy cảm (`CustomerEmail` khác `FreeText`) để compiler chặn chỗ
-  ghi sai. Nguyên tắc làm trạng thái sai không thể biểu diễn của `references/design-guide.md`
-  áp dụng nguyên vẹn cho data classification.
-- Danh sách cột PII nằm cạnh schema và được soi mỗi lần có migration, vì đó là thời điểm
-  trường hợp xấu nhất: field mới lọt vào bảng production mà không ai kịp nghĩ tới hậu quả.
-- Validate ở boundary chặn trường cấm đi vào nơi không được lưu — ví dụ endpoint read-only
-  từ chối nhận `national_id` trong payload, thay vì nhận rồi bỏ đi.
+- A distinct type for sensitive fields (`CustomerEmail` vs `FreeText`) so the compiler blocks
+  the wrong write. The make-invalid-states-unrepresentable rule in
+  `references/design-guide.md` applies to data classification unchanged.
+- A list of PII columns next to the schema, reviewed on every migration, because that is the
+  worst moment: a new field slipping into a production table before anyone thought about the
+  consequence.
+- Validation at the boundary stops forbidden fields from reaching a place they must not be
+  stored - a read-only endpoint rejects `national_id` in the payload instead of accepting it
+  and dropping it.
 
-Vì sao: phân loại ghi trong tài liệu thì không ai tra lúc viết query mới. Phân loại nằm
-trong migration thì người lạ đọc diff là biết ngay cái gì nhạy cảm.
+Why: classification written in a document is not consulted when somebody writes a new query.
+Classification sitting in the migration means a stranger reading the diff knows what is
+sensitive.
 
-## 3. PII và secrets từ đầu đến cuối
+## 3. PII and secrets, end to end
 
-- **Thu thập tối thiểu.** Trường không tồn tại thì không có nghĩa vụ lưu trữ, không có rủi ro,
-  không có câu hỏi "cái này dùng để làm gì nữa".
-  Vì sao: mỗi field bạn lưu là một nghĩa vụ dài hạn. Xoá một field sau ba năm dữ liệu tốn
-  hơn hàng trăm lần so với việc không lưu nó.
-- **Không có PII trong** log, trace, span attribute, error message, URL path hay query string,
-  analytics event, crash report, screenshot trong ticket.
-  Vì sao: ba chỗ lọt phổ biến nhất là **URL** (nằm trong access log của mọi hạ tầng phía sau
-  và trong `Referer` của request kế tiếp), **log** (được gửi ra ngoài qua bên thứ ba), và
-  **analytics** (gần như không ai mở cấu hình để kiểm).
-- **Mask, không truncate.** `a***@example.com` giữ shape để debug còn `ada...` là dữ liệu
-  vô dụng mà vẫn là dữ liệu cá nhân.
-  Vì sao: log cần giá trị để debug, nhưng log không cần phần định danh.
-- **Test data phải synthetic, có cùng shape**: cùng độ dài, cùng edge case unicode, cùng
-  định dạng ngày và timezone, không có id thật, không lấy từ production.
-  Vì sao: dữ liệu thật trong fixture sống lâu hơn cả hệ thống, và repo thường có quyền đọc
-  rộng hơn bạn nghĩ. Xoá khỏi git không phải là xoá.
-- Secret không bao giờ nằm trong cùng diff với thứ khác — quy trì ở `references/git-workflow.md`.
-- **Lọt rồi thì sao**: đây không còn là bug. Nó là sự cố có nghĩa vụ thông báo, và đồng hồ
-  chạy từ lúc bạn *biết*, không phải từ lúc bạn chắc chắn.
-  Vì sao: khoảng thời gian giữa lúc phát hiện và lúc thông báo là thứ quyết định mức độ
-  nghiêm trọng của sự cố. "Chắc không ai thấy" không phải kế hoạch xử lý.
+- **Collect the minimum.** A field that does not exist creates no storage obligation, no
+  risk, no "what is this for now" question.
+  Why: every field you store is a long-term obligation. Deleting a field after three years
+  of data costs hundreds of times more than never storing it.
+- **No PII in** logs, traces, span attributes, error messages, URL paths or query strings,
+  analytics events, crash reports, screenshots in tickets.
+  Why: the three most common leaks are **URL** (in the access log of every downstream
+  infrastructure and in the `Referer` of the next request), **log** (shipped out through
+  third parties), and **analytics** (almost nobody opens the config to check).
+- **Mask, do not truncate.** `a***@example.com` keeps the shape so you can debug, while
+  `ada...` is useless data that is still personal data.
+  Why: logs need the value to debug, but logs do not need the identifier.
+- **Test data must be synthetic, same shape**: same length, same unicode edge cases, same
+  date and timezone format, no real ids, not taken from production.
+  Why: real data in a fixture outlives the system, and repos usually have broader read
+  access than you think. Removing it from git is not deleting it.
+- A secret never shares a diff with anything else - the process is in
+  `references/git-workflow.md`.
+- **Once it has leaked**: this is no longer a bug. It is an incident with a notification
+  duty, and the clock starts when you *know*, not when you are sure.
+  Why: the gap between discovery and notification is what decides how serious the incident
+  is. "Probably nobody saw it" is not an incident response plan.
 
 ## 4. Audit trail
 
-Mỗi event phải có đủ bảy field, thiếu một là không dùng để trả lời được câu hỏi:
+Every event needs all seven fields; missing one makes it useless for answering the question:
 
-| Field | Vì sao cần |
+| Field | Why it is needed |
 | --- | --- |
-| actor | Ai hoặc cái gì. Không có nó thì log chỉ chứng minh *đã có gì đó xảy ra* |
-| action | Verb cụ thể, không phải `access` chung chung |
-| target | Resource nào, bằng id tồn tại thật |
-| outcome | Cho phép, từ chối, lỗi. Từ chối mới là phần đáng đọc nhất khi có sự cố |
-| timestamp | UTC, có timezone, không phải giờ máy local |
+| actor | Who or what. Without it the log only proves *something happened* |
+| action | A specific verb, not a generic `access` |
+| target | Which resource, by an id that really exists |
+| outcome | Allowed, denied, error. Denied is the most worth reading after an incident |
+| timestamp | UTC, with timezone, not local machine time |
 | source | IP, service identity, credential id |
-| correlation id | Nối app log, trace, và audit event của cùng một request |
+| correlation id | Ties the app log, the trace, and the audit events of the same request |
 
-| Không phải audit log | Vì sao |
+| Not an audit log | Why |
 | --- | --- |
-| `console.log` trong handler | Không ai giữ lâu, không có cấu trúc, và xoá được |
-| Dòng log bạn grep để debug | Đổi format là mất lịch sử; không ai đặt retention riêng cho nó |
-| Metric đếm số lần gọi | Nói có *bao nhiêu*, không nói *ai làm gì lên cái gì* |
-| Bảng audit nằm cùng DB với app data | `DROP TABLE` là xoá bằng chứng |
+| `console.log` in a handler | Nobody keeps it long, it is unstructured, and it is deletable |
+| A log line you grep to debug | Changing the format loses history; nobody sets separate retention for it |
+| A metric counting calls | Tells you *how many*, not *who did what to what* |
+| An audit table in the same DB as app data | `DROP TABLE` deletes the evidence |
 
-- **Append-only.** Không `UPDATE`, không `DELETE` trong bất kỳ code path nào.
-  Vì sao: log sửa được thì không chứng minh được điều gì.
-- **Tamper-evident.** Hash chain, chữ ký, hoặc lưu ở nơi không ghi đè được; kiểm tra
-  định kỳ. Vì sao: kẻ gây thiệt hại cũng có quyền ghi log.
-- **Retention dài hơn log ứng dụng**, và nằm ở nơi app không xoá được — bucket riêng, retention
-  lock, đã ký. Vì sao: bằng chứng hết hạn cùng lúc với log debug là bằng chứng không tồn tại.
-- **Bắt buộc phải có**: đăng nhập / đăng xuất kể cả lần fail, thay đổi role và quyền, đọc /
-  ghi / xoá dữ liệu theo data subject, export hàng loạt, mọi lần truy cập bằng đường admin.
-- **Ghi ở tầng application, không ở tầng database.** Vì sao: trigger ở DB bỏ sót những lần đọc
-  mà app đã chặn, và — nghiêm trọng hơn — nó không biết actor là ai.
+- **Append-only.** No `UPDATE`, no `DELETE` in any code path.
+  Why: a log that can be edited proves nothing.
+- **Tamper-evident.** Hash chain, signature, or stored somewhere it cannot be overwritten;
+  checked periodically. Why: whoever causes the damage also has write access to the log.
+- **Retained longer than application logs**, and stored where the app cannot delete it - a
+  separate bucket, a retention lock, signed. Why: evidence that expires with the debug log
+  is evidence that does not exist.
+- **Mandatory**: login / logout including failures, role and permission changes, read /
+  write / delete by data subject, bulk export, every access through an admin path.
+- **Written at the application layer, not the database layer.** Why: a trigger in the DB
+  misses the reads the app blocked, and - worse - it does not know who the actor is.
 
-## 5. Access control là code
+## 5. Access control as code
 
-`references/design-guide.md` đã nói authN + authZ ở mọi boundary, mặc định từ chối. Ở đây là
-phần mà một linter không thấy và một endpoint mới hay quên.
+`references/design-guide.md` already covers authN + authZ at every boundary, deny by
+default. What is here is the part a linter does not see and a new endpoint forgets.
 
-- **"Nó nằm trong internal network" không phải quyết định authorization.**
-  Vì sao: một credential bị copy ra container khác là một quyền truy cập, và network không có
-  ý tưởng credential đó tồn tại. Cách kiểm chứng: gọi service A tới service B bằng
-  credential lấy được — nếu thành công thì đó là lỗ hổng, không phải cấu hình.
-- **Service-to-service: mTLS, hoặc token có chữ ký với audience và thời hạn ngắn.**
-  Vì sao: static secret chia sẻ qua env không trả lời được câu "ai đã lấy ra" — và mọi
-  request sau đó là mù.
-- **Server kiểm tra, kể cả khi UI đã ẩn nút.** Vì sao: UI là gợi ý cho người dùng, không
-  phải rào.
-- **AuthZ ở tầng truy cập dữ liệu, không chỉ ở route.** Query mà quên gắn
-  `WHERE tenant_id = ?` là toàn bộ tenant nhìn thấy nhau, và test ở tầng route vẫn xanh.
-  Vì sao: đây là bug đắt nhất trong danh sách, và không test tầng nào theo mặc định bắt được.
-- **Phân tách role.** Role đọc thường và role privileged tách nhau; role privileged có
-  thời hạn hoặc cần lý do được ghi.
-  Vì sao: một tài khoản bị chiếm đoạt mang toàn bộ quyền admin là sự cố khác loại với việc
-  lộ một bản ghi.
-- **Break-glass access**: cơ chế riêng, credential riêng, log riêng, có người duyệt hậu kiểm.
-  Vì sao: không có break-glass thì lúc sự cố người ta dùng credential cá nhân — và bạn mất
-  đúng dấu vết bạn cần nhất.
-- **Test negative cho mọi route mới**: gọi bằng role khác, không chỉ test đường hợp lệ.
-  Vì sao: test chỉ test đường thành công là dạng hỏng authZ phổ biến nhất, và nó trông xanh
-  hoàn toàn bình thường. Chi tiết phần này ở `references/testing-guide.md`.
+- **"It is on the internal network" is not an authorization decision.**
+  Why: a credential copied into another container is an access grant, and the network has
+  no idea that credential exists. How to verify: call service A to service B with the
+  credential you obtained - if it succeeds, that is a vulnerability, not a configuration.
+- **Service-to-service: mTLS, or a signed token with an audience and a short expiry.**
+  Why: a static secret shared through env vars cannot answer "who took it" - and every
+  request after that is blind.
+- **The server checks, even when the UI hides the button.** Why: the UI is a hint for the
+  user, not a fence.
+- **authZ at the data access layer, not just at the route.** A query that forgets
+  `WHERE tenant_id = ?` means all tenants see each other, and a test at the route layer is
+  still green. Why: this is the most expensive bug on the list, and no layer tests it by
+  default.
+- **Separate roles.** Read roles and privileged roles are different; a privileged role has
+  an expiry or a recorded reason.
+  Why: one compromised account holding all admin rights is a different class of incident
+  from leaking a single record.
+- **Break-glass access**: a separate mechanism, a separate credential, separate logs, a
+  post-hoc approver.
+  Why: with no break-glass, during an incident people use personal credentials - and you
+  lose exactly the trail you needed most.
+- **Negative test for every new route**: call it with a different role, not just the happy
+  path. Why: a test that only tests the success path is the most common authZ failure mode,
+  and it looks completely normal. Details in `references/testing-guide.md`.
 
-## 6. Vòng đời dữ liệu
+## 6. Data lifecycle
 
-| Cơ chế | Bạn còn làm được gì sau đó | Vì sao khác nhau |
+| Mechanism | What you can still do afterwards | Why they differ |
 | --- | --- | --- |
-| Xoá | Không còn gì để dùng | Đơn giản nhất và đắt nhất khi phát hiện muộn |
-| Pseudonymise — giữ id, bỏ trường nhận diện | Vẫn join và tổng hợp được | Rẻ hơn xoá, nhưng **vẫn là PII** ở hầu hết khung pháp lý |
-| Anonymise | Dùng cho thống kê, không truy ngược được về cá nhân | Khó đảm bảo: phải xử lý free text, tên, IP, số điện thoại, id suy ra |
+| Delete | Nothing, it is gone | The simplest and the most expensive when discovered late |
+| Pseudonymise - keep the id, drop the identifying fields | Still joinable and still aggregatable | Cheaper than deleting, but **still PII** under most legal frameworks |
+| Anonymise | Usable for statistics, no longer traceable to a person | Hard to guarantee: you must handle free text, names, IPs, phone numbers, inferable ids |
 
-Nhầm ba cái này là nguồn của phần lớn câu trả lời sai khi có data subject request.
+Confusing these three is the source of most wrong answers to a data subject request.
 
-- **Retention theo data class và theo region.** Vì sao: một con số toàn cục nghĩa là bạn
-  hoặc giữ lâu hơn mức được chấp nhận, hoặc xoá sớm hơn mức business chịu được.
-- **Xoá ở bảng chính không phải xoá.** Vì sao: replica, snapshot, backup, search index,
-  cache, và dữ liệu đã gửi sang bên thứ ba vẫn còn đó. Trước khi viết hàm delete, hãy lập
-  danh sách một row có thể tồn tại ở đâu — việc đó là một task, không phải một suy nghĩ.
-- **Backup expiry là một job có lịch và có bằng chứng chạy.** Vì sao: đây là câu trả lời dễ
-  nói sai nhất trong một data subject request — "chúng tôi đã xoá" rồi phát hiện dữ liệu còn
-  trong backup 30 ngày.
-- **Export/right-to-access phải bao phủ cache, replica, warehouse analytics, và các bên
-  thứ ba.** Vì sao: export thiếu một phần là export sai, và người nhận không có cách nào biết
-  là thiếu.
-- **Legal hold phải là một cờ trong schema**, không phải một quyết định miệng. Vì sao: xoá khi
-  đang có hold là sự cố tệ hơn nhiều so với giữ lâu hơn mức cần.
+- **Retention per data class and per region.** Why: one global number means you either keep
+  data longer than acceptable or delete it earlier than the business can absorb.
+- **Deleting from the main table is not deleting.** Why: replicas, snapshots, backups, search
+  indexes, caches, and data already sent to third parties are all still there. Before you
+  write the delete function, list every place a row can exist - that is a task, not a
+  thought.
+- **Backup expiry is a scheduled job with evidence it ran.** Why: this is the easiest answer
+  to get wrong in a data subject request - "we deleted it", then finding the data is still
+  in a 30-day backup.
+- **Export/right-to-access must cover caches, replicas, the analytics warehouse, and third
+  parties.** Why: an export missing one part is a wrong export, and the recipient has no way
+  to know it is missing.
+- **Legal hold must be a flag in the schema**, not a verbal decision. Why: deleting while a
+  hold is in place is a far worse incident than keeping slightly longer than needed.
 
-## 7. Supply chain và provenance
+## 7. Supply chain and provenance
 
-### Dependency
+### Dependencies
 
-- **Lockfile phải commit.** Vì sao: build không tái lập được thì "cái gì đã chạy lúc sự cố"
-  là câu hỏi không có câu trả lời — và mọi câu trả lời bắt đầu bằng một con số version.
-- **Thêm dependency là một quyết định, không phải một dòng lệnh.** Đọc `install script` trước
-  khi chạy. Vì sao: install script thực thi code của người lạ trước khi code của bạn chạy, và
-  nó là chỗ ít được review nhất trong toàn bộ supply chain.
-- **Pin version cho thư viện lõi.** Vì sao: range kiểu `^` nghĩa là bạn đang chạy thử một bản
-  phát hành mới trên production mỗi lần ai đó push lên registry.
-- **SBOM sinh trong CI** theo CycloneDX hoặc SPDX, gắn với release, lưu lâu hơn vòng đời
-  build. Vì sao: SBOM dựng tay lúc sự cố là SBOM không có — và thứ duy nhất nó để lại là cảm
-  giác đã có.
-- **Vulnerability scan phải có chính sách severity thật.** Vì sao: firehose không ai triage tạo
-  cảm giác an toàn giả và làm team tắt cảnh báo, tức là nó làm giảm khả năng phát hiện thật.
-  Chính sách phải nói rõ cái gì chặn release, cái gì tạo ticket, và ai xử lý.
-- **Kiểm tra licence trước khi thêm dependency.** Vì sao: đây là quyết định pháp lý, và gỡ
-  một dependency đã đóng gói vào release gần như không hoàn tác được. Kiểm tra lúc
-  `npm install` tốn ba mươi giây; kiểm tra lúc audit tốn hàng tháng.
+- **The lockfile must be committed.** Why: if the build is not reproducible then "what ran
+  during the incident" is a question with no answer - and every answer starts with a version
+  number.
+- **Adding a dependency is a decision, not a command line.** Read the `install script`
+  before you run it. Why: an install script executes someone else's code before your code
+  runs, and it is the least reviewed part of the entire supply chain.
+- **Pin versions for core libraries.** Why: a `^` range means you are trying a new release on
+  production every time somebody pushes to the registry.
+- **SBOM generated in CI** in CycloneDX or SPDX, attached to the release, stored longer than
+  the build lifecycle. Why: an SBOM hand-assembled during an incident is an SBOM you do not
+  have - and the only thing it leaves behind is the feeling that you had one.
+- **Vulnerability scanning needs a real severity policy.** Why: a firehose nobody triages
+  creates a false sense of safety and makes the team disable alerts, which reduces real
+  detection. The policy must say what blocks a release, what creates a ticket, and who
+  handles it.
+- **Check the licence before adding the dependency.** Why: this is a legal decision, and
+  removing a dependency that already shipped in a release is close to irreversible. Checking
+  at `npm install` takes thirty seconds; checking at audit takes months.
 
-### Provenance của code được sinh ra
+### Provenance of generated code
 
-- **Điều khoản của một package là điều khoản của người publish nó, không phải của
-  upstream.** Vì sao: chuỗi sublicense và điều khoản phái sinh là chỗ mâu thuẫn xuất hiện muộn
-  nhất, và bạn không tự quyết được.
-- **Code do công cụ sinh ra vẫn phải qua cùng quy tắc.** Ai là tác giả được ghi nhận, điều
-  khoản nào áp dụng, được phép đóng gói và phân phối không.
-- **Điều khoản vendor và phần bồi thường trong hợp đồng quyết định ai chịu trách nhiệm khi có
-  claim.** Đó là điều khoản hợp đồng, không phải thứ bạn tự suy ra từ tài liệu công cụ.
-- **Nguồn gốc của tài liệu hay mã mà công cụ dựa vào không phải phạm vi kỹ sư kết luận
-  được.** Câu trả lời trung thực khi bị hỏi là "chúng tôi không biết và không kiểm chứng
-  được". Vì sao: đây là chỗ dễ nhất để khẳng định quá mức, và một claim sai về IP tốn nhiều
-  hơn nhiều so với một câu "không rõ".
-- **Khi scanner hoặc reviewer gắn cờ:** dừng, tách phần bị gắn cờ khỏi phần đã xác minh, ghi
-  lại cách đã xử lý và kết luận. Vì sao: xoá im lặng rồi merge là kết quả tệ nhất — mất cả
-  tín hiệu lẫn dấu vết, và làm người sau tin nhầm rằng nó đã được xử lý.
+- **A package's terms are the terms of whoever published it, not of upstream.**
+  Why: sublicence chains and derived terms are where contradictions appear latest, and you
+  cannot decide them on your own.
+- **Tool-generated code still goes through the same rules.** Who is credited as author,
+  which terms apply, whether packaging and redistribution are permitted.
+- **Vendor terms and the indemnification clause decide who is liable when there is a
+  claim.** That is contract language, not something you infer from the tool's documentation.
+- **The origin of the material or code the tool relies on is not an engineer's call.** The
+  honest answer when asked is "we do not know and cannot verify it". Why: this is the
+  easiest place to over-claim, and one wrong IP claim costs far more than an "unclear".
+- **When a scanner or a reviewer flags something**: stop, split the flagged part from the
+  verified part, record how it was handled and what the conclusion was. Why: deleting it
+  silently and merging is the worst outcome - you lose both the signal and the trail, and the
+  next person wrongly believes it was handled.
 
-| Signal | Nghĩa là gì | Ai quyết | Bằng chứng để ở đâu |
+| Signal | What it means | Who decides | Where the evidence lives |
 | --- | --- | --- | --- |
-| Lockfile diff trong PR | Build có tái lập được hay không | Người review | Diff lockfile trong chính PR đó |
-| Advisory có CVE và code tới được | Phản ứng trước, bất kể severity | Kỹ sư sửa | PR fix + link advisory |
-| Advisory không tới được | Ghi nhận, không sửa gấp | Owner chính sách severity | Ticket kèm phân tích reachability |
-| Licence không tương thích cách bạn phân phối | **Dừng merge** | Legal + tech lead | Ghi quyết định trong ticket |
-| Package không còn được duy trì, hoặc có install script mới | Rủi ro supply chain | Tech lead | Ghi quyết định trong ticket |
-| Job sinh SBOM fail | Đã release thứ không truy vết được | Release owner | Build log + artifact lưu lâu |
-| Material sinh ra bị gắn cờ về IP hoặc licence | Chưa xác minh được nguồn gốc | Legal | Kết quả điều tra, ghi lại kết luận |
+| Lockfile diff in the PR | Whether the build is reproducible | The reviewer | The lockfile diff in that same PR |
+| Advisory with a CVE you can reach | React first, regardless of severity | The engineer fixing it | Fix PR + advisory link |
+| Advisory you cannot reach | Record it, no rush to fix | Severity policy owner | Ticket with a reachability analysis |
+| Licence incompatible with how you distribute | **Stop the merge** | Legal + tech lead | Decision recorded in the ticket |
+| Package unmaintained, or with a new install script | Supply chain risk | Tech lead | Decision recorded in the ticket |
+| SBOM job failed | You shipped something untraceable | Release owner | Build log + long-retained artifact |
+| Generated material flagged for IP or licence | Provenance not verified | Legal | Investigation result, conclusion recorded |
 
-Cột "ai quyết" quan trọng bằng cột "nghĩa là gì". Tín hiệu không có chủ thì nó không đi đến
-đâu.
+The "who decides" column matters as much as the "what it means" column. A signal with no
+owner goes nowhere.
 
 ## 8. Change control
 
-| Thay đổi | Điều phải có trước khi merge |
+| Change | What must exist before merging |
 | --- | --- |
-| Schema hoặc data migration | Migration plan trong PR: additive?, rollback thế nào?, dữ liệu đang tồn tại chịu thế nào |
-| AuthN / authZ / permission | Review của owner auth, bắt buộc |
-| Đường tiền hoặc billing | Review của owner billing; chứng minh idempotency khi chạy lặp |
-| Retention hoặc deletion | Review của owner data; xác nhận đường xoá vẫn còn đúng sau thay đổi |
-| Log field hoặc đường PII mới | Xác nhận field đó được mask và có retention riêng |
-| Thêm dependency | Kiểm tra licence và advisory, ghi kết quả vào PR |
+| Schema or data migration | Migration plan in the PR: additive?, how is the rollback?, how does existing data cope |
+| AuthN / authZ / permission | Review by the auth owner, mandatory |
+| Money path or billing | Review by the billing owner; idempotency proven by running it twice |
+| Retention or deletion | Review by the data owner; confirm the delete path is still correct after the change |
+| New log field or PII path | Confirm the field is masked and has its own retention |
+| Adding a dependency | Licence and advisory checked, result recorded in the PR |
 
-- **Approval record là dấu vết trong hệ thống** — PR approval, `CODEOWNERS` bắt buộc review —
-  không phải lời nhắn. Vì sao: *"chúng tôi đã báo trong Slack"* không trả lời được câu "ai cho
-  phép cái này vào lúc nào", và đó chính là câu audit hỏi.
-- **`CODEOWNERS` là control rẻ nhất và bị bỏ nhiều nhất.** File được đánh dấu mà không ai
-  thực sự sửa là bằng chứng không tồn tại.
-  Vì sao: ownership giả làm mọi claim "đã review" trở nên vô nghĩa, và nó hỏng âm thầm —
-  không có gì đỏ để nhìn thấy.
-- **Emergency change vẫn đi qua PR**, được gắn nhãn, và có hạn retro-review.
-  Vì sao: deploy thẳng lúc sự cố là hợp lý vận hành; việc không ai nhìn lại nó là chỗ sự cố
-  thứ hai bắt đầu.
-- **PR template buộc trả lời các câu ở mục 9.** Vì sao: một ô trong template là câu hỏi
-  được hỏi mỗi lần; không có ô thì câu hỏi không bao giờ được hỏi. Định dạng PR ở
-  `references/git-workflow.md`.
+- **An approval record is a trace in the system** - a PR approval, a `CODEOWNERS`-required
+  review - not a chat message. Why: *"we announced it in Slack"* does not answer "who allowed
+  this in, and when", which is exactly the question an audit asks.
+- **`CODEOWNERS` is the cheapest control and the most often skipped.** A file that is marked
+  but never actually edited is evidence that does not exist.
+  Why: fake ownership makes every "reviewed" claim meaningless, and it fails silently -
+  nothing goes red.
+- **An emergency change still goes through a PR**, labelled, with a retro-review deadline.
+  Why: deploying straight during an incident is reasonable operations; nobody ever looking at
+  it again is where the second incident starts.
+- **The PR template forces answers to the questions in section 9.** Why: a field in the
+  template is a question asked every time; no field means the question is never asked. PR
+  format in `references/git-workflow.md`.
 
-## 9. Câu hỏi phải hỏi trước khi merge
+## 9. Questions to ask before merging
 
-Đây là bảng ở mục 6 của `SKILL.md` ở tầm doanh nghiệp. Chỉ áp dụng khi diff chạm **data,
-quyền, tiền, hoặc trường regulated** — còn lại thì bảng ở `SKILL.md` là đủ.
+This is the table from section 6 of `SKILL.md`, at enterprise scale. Apply it only when the
+diff touches **data, permissions, money, or regulated fields** - otherwise the table in
+`SKILL.md` is enough.
 
-| Câu hỏi | Nếu không trả lời được |
+| Question | If you cannot answer it |
 | --- | --- |
-| Field này thuộc data class nào, ai đã phân loại? | Chưa phân loại thì xử lý như confidential |
-| Dữ liệu này còn tồn tại ở những nơi nào nữa? | Sẽ phát hiện ra khi cần xoá, tức là muộn |
-| Có đường xoá không, và xoá hết ở đâu? | Không xoá được = không xử lý được data subject request |
-| Nếu bỏ hết UI, ai vẫn gọi được endpoint này? | Route mới chưa có authZ |
-| Query này có scope theo tenant/user không? | Rò dữ liệu chéo tenant; test tầng route không bắt |
-| Event này có vào audit log đủ field không? | Khi có sự cố, không trả lời được "ai đã làm gì" |
-| Log, error, trace mới đẩy dữ liệu gì ra ngoài? | PII lọt qua log — không hoàn tác được |
-| Nếu đây là con đường tiền, nó chạy hai lần thì sao? | Charge hai lần, ship hai lần |
-| Dependency mới có licence nói gì? | Một quyết định pháp lý gần như không hoàn tác được |
-| Rollback của thay đổi này là gì? | Sự cố thứ hai, và lúc này không còn dữ liệu sạch |
+| Which data class is this field, and who classified it? | Unclassified means treat it as confidential |
+| Where else does this data still exist? | You find out when it must be deleted, which is late |
+| Is there a deletion path, and does it cover everywhere? | Cannot delete = cannot handle a data subject request |
+| If the UI disappears, who can still call this endpoint? | A new route with no authZ |
+| Is this query scoped by tenant/user? | Cross-tenant data leak; a route-layer test does not catch it |
+| Does this event reach the audit log with all fields? | During an incident you cannot answer "who did what" |
+| What new data do logs, errors, traces push out? | PII leaking through logs, not reversible |
+| If this is the money path, what happens when it runs twice? | Double charge, double ship |
+| What does the new dependency's licence say? | A legal decision that is close to irreversible |
+| What is the rollback for this change? | A second incident, and this time there is no clean data left |
 
-## Khi nào file này liên quan
+## When this file applies
 
-| Tình huống | Đọc mục |
+| Situation | Read sections |
 | --- | --- |
-| Thêm endpoint, storage, log field, hay bên thứ ba mới | 2, 3, 5 |
-| Đụng dữ liệu thật, retention, export, delete | 6 |
-| Thêm dependency, hoặc đổi pipeline build/release | 7 |
-| Câu hỏi "cái này có hợp pháp không" | 1 — rồi hỏi legal, đừng tự suy ra |
-| Diff chạm quyền, tiền, hoặc data subject | 9 |
-| Sự cố liên quan dữ liệu hoặc truy cập | 4 — và bắt đầu từ correlation id |
+| Adding an endpoint, storage, a log field, or a third party | 2, 3, 5 |
+| Touching real data, retention, export, delete | 6 |
+| Adding a dependency, or changing the build/release pipeline | 7 |
+| The question "is this legal?" | 1 - then ask legal, do not derive it yourself |
+| Diff touches permissions, money, or a data subject | 9 |
+| An incident involving data or access | 4 - and start from the correlation id |
 
-Không cần file này cho T1. Cần nó trước khi viết dòng code đầu tiên, không phải sau khi
-deploy — vì cả hai điều chỉnh sửa được sau khi deploy đều tốn hơn viết đúng ngay từ đầu.
+No need for this file on T1. You need it before writing the first line of code, not after
+deploying - because both of those fixes cost far more after a deploy than writing it right
+from the start.
 
-## Một câu hỏi duy nhất
+## One question
 
-> Nếu hôm nay có người hỏi *"ai đã xem dữ liệu này, từ lúc nào, và bằng bằng chứng gì?"*
-> — bạn trả lời bằng artefact, hay bằng ý kiến?
+> If somebody today asked *"who looked at this data, since when, and on what evidence?"*
+> - do you answer with an artefact, or with an opinion?
 
-Câu trả lời thứ hai không qua được bất kỳ audit nào. Và phần lớn repo trả lời bằng ý kiến
-vì lúc sự cố không ai nhớ mình đã log gì.
+The second answer fails every audit. And most repos answer with an opinion, because during an
+incident nobody remembers what they logged.

@@ -1,90 +1,93 @@
 # Plan Templates
 
-Plan là hợp đồng với người dùng, không phải phần diễn tập. Nó nói **cái gì đổi, cái gì
-không đổi, chứng minh bằng cách nào, và có thể hỏng ở đâu**. Nó không chứa code.
+A plan is a contract with the user, not a rehearsal. It states **what changes, what does not
+change, how it is proven, and where it can break**. It contains no code.
 
-Vì sao viết plan sớm: nó làm lộ hiểu lầm khi hiểu lầm còn rẻ. Đổi hướng lúc đầu tốn vài
-dòng text. Đổi hướng sau khi đã viết 600 dòng code tốn một refactor và niềm tin.
+Why write the plan early: it surfaces a misunderstanding while a misunderstanding is still
+cheap. Changing direction at the start costs a few lines of text. Changing direction after
+600 lines of code cost a refactor and your credibility.
 
-## T2 — inline, 5-7 dòng
+## T2 - inline, 5-7 lines
 
 ```text
 Plan
-- Goal: <thay đổi behavior quan sát được, một câu>
-- Approach: <2-3 câu: thiết kế và nó sống ở đâu>
-- Files: <các path dự kiến đụng>
-- Verify: <lệnh cụ thể và kết quả mong đợi>
-- Risk: <một thứ khả năng cao sẽ bất ngờ nhất>
+- Goal: <the observable behavior change, one sentence>
+- Approach: <2-3 sentences: the design and where it lives>
+- Files: <the paths you expect to touch>
+- Verify: <the specific command and the expected result>
+- Risk: <the one thing most likely to surprise you>
 ```
 
-Trình bày xong thì làm tiếp, trừ khi chạm đường rủi ro. Không cần duyệt nghi thức cho một
-thay đổi nhỏ đã hiểu rõ.
+Present it and keep going, unless you hit a risk line. A small, well-understood change does not
+need a formal approval step.
 
-Một plan T2 tốt là **một lần đọc đủ để bắt đầu**. Nếu người đọc phải hỏi lại thì nó chưa
-đủ.
+A good T2 plan is **one read that is enough to start**. If the reader has to ask a question,
+it is not enough.
 
-## T3 — có cấu trúc, rồi dừng lại
+## T3 - structured, then stop
 
 ```text
-Problem     <cái gì thực sự sai, kèm bằng chứng: file:line, log, docs>
-Goal        <một câu: thế giới sau thay đổi này trông thế nào>
-Non-goals   <ngoài phạm vi, tường minh>
-Current     <entry point, module sở hữu, pattern sẵn có, test hiện khẳng định gì>
+Problem     <what is actually wrong, with evidence: file:line, log, docs>
+Goal        <one sentence: what the world looks like after this change>
+Non-goals   <out of scope, explicitly>
+Current     <entry point, owning module, existing pattern, what tests assert today>
 
-Options     1. <tên> - <cơ chế> - cost: <effort, blast radius> - risk: <cái gì hỏng>
-            2. <tên> - <cơ chế> - cost: <effort, blast radius> - risk: <cái gì hỏng>
-            Recommend: <phương án> vì <lý do gắn với Goal>
+Options     1. <name> - <mechanism> - cost: <effort, blast radius> - risk: <what breaks>
+            2. <name> - <mechanism> - cost: <effort, blast radius> - risk: <what breaks>
+            Recommend: <option> because <reason tied to the Goal>
 
-Design      <signature, data shape, error case, config surface, hướng dependency>
-Data        <thay đổi schema, backfill, cửa sổ tương thích ngược, rollback>
-Steps       1. <bước verify được độc lập>  2. ...  3. ...
-Verify      <lệnh> -> <kết quả mong đợi>, cho từng gate, cộng check quan sát được
-Risks       <rủi ro> -> <giảm thiểu>
-Questions   <cái người dùng phải trả lời trước hoặc trong bước N>
+Design      <signature, data shape, error case, config surface, dependency direction>
+Data        <schema change, backfill, backward compatibility window, rollback>
+Steps       1. <independently verifiable step>  2. ...  3. ...
+Verify      <command> -> <expected result>, for each gate, plus observable checks
+Risks       <risk> -> <mitigation>
+Questions   <what the user must answer before or at step N>
 ```
 
-## T4 — thay đổi có blast radius ra ngoài dự án
+## T4 - a change with blast radius outside the project
 
-Giống T3, thêm hai dòng bắt buộc. Chúng tồn tại vì đây là loại thay đổi mà người kế tiếp
-không thể tự suy ra được nếu bạn không viết ra.
+Same as T3, plus two mandatory lines. They exist because this is the kind of change the next
+person cannot infer on their own if you do not write it down.
 
 ```text
-Blast radius  - ai khác đang chạy cái này: tên service, package, endpoint, bảng dữ liệu
-Rollback      - cụ thể: revert commit, tắt flag, hay cần viết data ngược; và mất bao lâu
-Owner         - đội/người phải được thông báo trước khi deploy
+Blast radius  - who else runs this: service name, package, endpoint, data table
+Rollback      - be specific: revert the commit, flip a flag, or write the data back; and
+                how long that takes
+Owner         - the team/person to notify before deploy
 ```
 
-Nếu không có đường rollback đơn giản, đó là thông tin phải nêu ở T3 plan, không phải để
-cuối handoff.
+If there is no simple rollback path, that is information the T3 plan has to state, not
+something to leave at the end of the handoff.
 
-## Chất lượng
+## Quality
 
-Mục tiêu verify được (người khác tự biết đã đạt chưa mà không phải hỏi bạn) · **non-goals
-tường minh** (nguyên nhân thật của scope creep là ranh giới chưa nói) · file được gọi tên,
-không phải "cập nhật backend" · thiết kế viết ra như hợp đồng · lệnh thật có trong dự án ·
-rủi ro nói thẳng, vì plan không rủi ro là plan **chưa xong** · **lựa chọn kèm khuyến
-nghị**, không phải menu trần.
+Verifiable goals (someone else can tell whether you hit them without asking you) · **explicit
+non-goals** (the real cause of scope creep is an unstated boundary) · files named, not "update
+the backend" · the design written out like a contract · the real commands that exist in the
+project · risks stated plainly, because a plan with no risk is a plan that is **not done** ·
+**options with a recommendation**, not a bare menu.
 
 ## Plan drift
 
-Khi thực tế phá một giả định:
+When reality breaks an assumption:
 
-1. **Dừng.** Không tiếp tục với plan cũ trong khi giả định mới đang nạp vào.
-2. Nói cái gì đổi: giả định nào vỡ, bằng chứng, ảnh hưởng tới scope và rủi ro.
-3. Trình bày **phần delta**, không viết lại cả plan — người đọc cần thấy phần nào còn đúng.
-4. T3: chờ duyệt lại. T2: nói delta rồi đi tiếp.
+1. **Stop.** Do not keep going with the old plan while the new assumption loads in.
+2. Say what changed: which assumption broke, the evidence, the impact on scope and risk.
+3. Present **the delta**, do not rewrite the whole plan - the reader has to see which parts
+   are still correct.
+4. T3: wait for re-approval. T2: state the delta and continue.
 
 ```text
-Plan update: <cái gì đổi và vì sao>
-Impact: <file, rủi ro, effort>
-Revised step N: <cũ> -> <mới>
+Plan update: <what changed and why>
+Impact: <file, risk, effort>
+Revised step N: <old> -> <new>
 Continuing unless you say stop.
 ```
 
-Drift lặng lẽ là failure mode mà phần này sinh ra để chặn. Nó xấu hơn kế hoạch hơi lệch,
-vì người dùng đang duyệt một thứ không còn là thứ bạn đang làm.
+Silent drift is the failure mode this section exists to block. It is worse than a plan that is
+slightly off, because the user is approving something that is no longer what you are building.
 
-## Khi nào plan là thừa
+## When a plan is redundant
 
-Không cần plan cho T1 — typo và sửa một dòng không có quyết định thiết kế để trình bày.
-Viết plan cho việc mà bạn không cần hỏi ý kiến ai là lãng phí thời gian của cả hai bên.
+No plan for T1 - a typo and a one-line fix have no design decision to present. Writing a plan
+for work where you do not need anyone's opinion wastes both people's time.

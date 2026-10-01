@@ -1,150 +1,152 @@
 # Verification Techniques
 
-Bảng tra cứu: **khi nào dừng**, và **bước kiểm chứng tiếp theo nào đáng tiền nhất**.
+A lookup table: **where to stop**, and **which verification step is worth paying for next**.
 
-Điều kiện lọc: chỉ giữ kỹ thuật mà một agent lành nghề **không tự nghĩ ra** khi đang làm việc
-bình thường. Cái này đã được đo: trên các task review và fix bug, model đã tự tìm được các
-lỗi nghiêm trọng (missing backoff, `retries: 0` trả `undefined`, off-by-one, IDOR không
-scope). Nó không tự làm là **mutation testing** và **prove-it-red**. Vậy nên file này tập
-trung vào những bước đó, không lặp lại những gì ai cũng làm.
+Filter: only techniques a competent agent **does not reach for on its own** while doing ordinary
+work. This was measured. On review and bug-fix tasks the model already finds the serious bugs - a
+missing backoff, `retries: 0` resolving `undefined`, an off-by-one, an IDOR with no scope. What it
+does not do unprompted is **mutation testing** and **prove-it-red**. So this file is about those,
+not a restatement of what everyone already does.
 
-## 0. Thang dừng
+## 0. The stopping ladder
 
-Đừng chạy tất cả. Chạy tới khi **bước cuối cùng không còn đổi kết luận**.
+Do not run all of it. Stop when **the last step no longer changes your conclusion**.
 
-| Tier của việc | Dừng ở đâu | Vì sao dừng ở đó |
+| Work tier | Stop at | Why there |
 | --- | --- | --- |
-| Sửa typo, comment, config | Chạy test liên quan, xong | Full suite 20 phút cho một dòng là tự tạo lý do bỏ qua verification ở lần sau |
-| Bug fix trong một module | **Prove-it-red** → fix → xanh | Test hồi quy là thứ duy nhất ngăn bug đó quay lại |
-| Behavior mới | **Prove-it-red** + mutation có chọn lọc | Bạn mới viết cả code lẫn test: chỉ một trong hai có thể sai cùng lúc |
-| Sửa / review code của người khác | **Mutation test phần bạn đụng** | Bạn không viết test đó, nên bạn không biết nó bảo vệ cái gì |
-| Tác động lên dữ liệu, tiền, quyền | Tất cả, cộng rollback đã chạy thử | Không có bước nào ở trên bắt được việc dữ liệu bị ghi sai |
+| Typo, comment, config | Run the related test, done | A 20-minute full suite for one line is how you teach yourself to skip verification next time |
+| Bug fix in one module | **Prove-it-red** -> fix -> green | The regression test is the only thing stopping that bug returning |
+| New behaviour | **Prove-it-red** plus targeted mutation | You wrote both the code and the test; one of them can be wrong at the same time |
+| Fixing or reviewing someone else's code | **Mutation test what you touched** | You did not write the test, so you do not know what it guards |
+| Touching data, money, or permissions | All of it, plus a rollback that has actually been run | Nothing above catches a wrong write |
 
 ## 1. Prove-it-red
 
-Ghi test **trước**, chạy, nhìn nó đỏ, rồi mới sửa.
+Write the test **first**, run it, watch it fail, then fix.
 
-Vì sao đây là bước có giá trị cao nhất trong toàn bộ file: một test bạn viết *sau* khi sửa xong
-gần như luôn xanh, vì bạn viết nó để khớp với cái bạn vừa làm. Test viết trước là thứ chứng
-minh test có hỏi gì.
+Why this is the highest-value step in the file: a test written *after* the fix is almost always
+green, because you wrote it to match what you just did. A test written first is the evidence that
+the test asks anything.
 
 ```bash
-# 1. viết test, chưa sửa code
-npm test 2>&1 | tail -5     # kỳ vọng: đỏ, và đúng lý do
-# 2. sửa
-npm test 2>&1 | tail -5     # kỳ vọng: xanh
+# 1. write the test, do not touch the source yet
+npm test 2>&1 | tail -5     # expect: red, and for the right reason
+# 2. fix
+npm test 2>&1 | tail -5     # expect: green
 ```
 
-Đỏ vì `SyntaxError` không phải prove-it-red. Đỏ vì assertion sai mới là.
+Red because of a `SyntaxError` is not prove-it-red. Red because the assertion failed is.
 
-## 2. Xóa-thả để test có hỏi gì không
+## 2. Delete-and-observe
 
-Câu hỏi: **xoá feature này thì test có đỏ không?**
+The question: **if I delete this feature, does the test go red?**
 
 ```bash
-git stash            # hoặc: sửa tạm cho nhánh chết
+git stash            # or: break it temporarily on a scratch branch
 npm test 2>&1 | tail -3
 git stash pop
 ```
 
-Vì sao: một test khẳng định `handleWebhook({})` trả `{ ok: true }` là xanh, và cũng xanh với
-mọi thứ. Nó bảo vệ một hành vi **không ai muốn**. Cách rẻ nhất để thấy điều đó không phải đọc
-test — là xoá code rồi chạy.
+Why: a test asserting `handleWebhook({})` returns `{ ok: true }` is green, and it is also green
+with every implementation. It guards behaviour nobody wants. The cheapest way to see that is not to
+read the test - it is to delete the code and run it.
 
-Đây là kỹ thuật rẻ nhất trong file, và là kỹ thuật agent hay bỏ nhất vì nó phá code.
+This is the cheapest technique in the file, and the one agents skip most, because it breaks code.
 
-## 3. Mutation test — bước mà agent không tự làm
+## 3. Mutation testing - the step an agent does not take
 
-Sửa code **sai có chủ ý**, xem test có đỏ không. Đỏ nghĩa là test giữ được; xanh nghĩa là test
-không bảo vệ cái đó.
+Break the code **on purpose**, the way a bug would, and require the suite to go red. Red means the
+test holds; green means the test does not guard that.
 
 ```bash
-# mutant: nuốt lỗi thay vì ném lại
+# mutant: swallow the error instead of rethrowing
 cp src/client.js /tmp/client.bak
-# sửa: catch (e) { }  -- xoá dòng `if (i === retries - 1) throw e`
-npm test 2>&1 | tail -3      # kỳ vọng: ĐỎ. Xanh nghĩa là đường lỗi không được test.
+# remove the `if (i === retries - 1) throw e` line
+npm test 2>&1 | tail -3      # expect: RED. Green means the failure path is untested.
 cp /tmp/client.bak src/client.js
-npm test 2>&1 | tail -3      # xác nhận đã trả lại
+npm test 2>&1 | tail -3      # confirm it is back
 ```
 
-Vì sao đây là bước quan trọng nhất ở đây, và là thứ đo được là model **không** tự làm: nó
-đọc code, thấy hợp lý, rồi báo "có vẻ ổn". Không có mutant nào thì "có vẻ ổn" là cảm giác.
-Đo được: trên một helper retry, mutant "nuốt lỗi" xanh hoàn toàn — tức là bản build mà mọi lỗi
-đều bị báo là thành công vẫn pass toàn bộ suite.
+Why this is the most important section here, and the one measured to be absent without prompting:
+the model reads the code, finds it plausible, and reports "looks fine". Without a mutant, "looks
+fine" is a feeling. Measured: on a retry helper, the "swallow the error" mutant stayed green -
+meaning a build in which every failure is reported as success passes the entire suite.
 
-Chọn mutant nào đáng tiền: lấy từ **nhánh lỗi** chứ không phải từ toàn bộ code. Xoá throw,
-xoá `await`, đảo điều kiện, đổi `===` thành `!==`. 3-5 mutant trên phần bạn vừa đụng là đủ;
-mutation toàn bộ codebase là một việc khác và đắt hơn nhiều.
+Choose mutants from the **failure branch**, not from all the code. Removing a throw, removing an
+await, inverting a condition, dropping a guard. Three to five mutants over what you just touched
+is enough; mutating an entire codebase is a different and much more expensive job.
 
-## 4. Chạy code, không chỉ đọc
+`node scripts/proof.mjs` does all of this mechanically, over every changed file.
 
-Với logic thuần tuý, một script thăm dè trả lời thứ đọc không trả lời.
+## 4. Run it, do not just read it
+
+For pure logic, an exploratory script answers what reading cannot.
 
 ```js
-// `retries: 0` là gì? Chạy thay vì suy luận.
+// What does `retries: 0` actually do? Run it rather than reason about it.
 for (const n of [0, -1, 1, 3]) {
   const r = await call(() => { throw new Error('x') }, { retries: n })
   console.log(`retries=${n} ->`, r)
 }
 ```
 
-Vì sao: đây là cách tìm ra `retries: 0` resolve `undefined` mà không ném lỗi, và `retries: N`
-nghĩa là N lần **thử** chứ không phải N lần **thử lại**. Cả hai đều là bug chỉ hiện khi chạy,
-và cả hai đều bị một model đọc code bỏ qua.
+Why: this is how you find that `retries: 0` resolves `undefined` without throwing, and that
+`retries: N` means N **attempts** rather than N **retries**. Both are bugs that only appear when
+you run, and both are missed by a model that reads the code.
 
-## 5. So với người thật trong repo
+## 5. Compare against a human in the repo
 
-Đừng hỏi "code này đúng không" — hỏi "repo này làm việc tương tự thế nào ở chỗ khác".
-
-```bash
-grep -rn "catch" --include='*.ts' src/ | head   # ở đây họ nuốt lỗi hay log?
-grep -rn "retries" --include='*.ts' src/       # naming convention: attempts hay retries?
-```
-
-Vì sao: một implementation đúng nhưng lệch convention là một future incident — người sau đọc
-hiểu sai vì mọi thứ xung quanh nói ngược lại.
-
-## 6. Đo cái đo được
-
-Khi có một con số, đo thay vì tranh luận. Với mọi thay đổi có tác động thời gian hoặc kích
-thước:
+Do not ask "is this code correct" - ask "how does this repo do the same thing elsewhere".
 
 ```bash
-time npm test                       # trước
-# sửa
-time npm test                       # sau
+grep -rn "catch" --include='*.ts' src/ | head   # do they swallow or log here?
+grep -rn "retries" --include='*.ts' src/       # is the convention "attempts" or "retries"?
 ```
 
-Vì sao: "nhanh hơn" không kiểm chứng được và không ai kiểm tra lại. `0.047ms cho 3 lần thử`
-là con số có sức nặng; nó biến "không có backoff" từ nhận xét thành phát hiện.
+Why: an implementation that is correct but off-convention is a future incident, because everyone
+reading it afterwards understands the opposite.
 
-## 7. Những thứ đo không được
+## 6. Measure what can be measured
 
-Đừng chạy, vì chúng tốn thời gian mà không đổi quyết định:
+When there is a number, measure instead of arguing. For any change with a performance or size
+impact:
 
-| Kỹ thuật | Khi nào bỏ qua |
+```bash
+time npm test                       # before
+# change
+time npm test                       # after
+```
+
+Why: "faster" cannot be verified and nobody checks it. `0.047ms for three attempts` is a number
+with weight; it turns "there is no backoff" from an opinion into a finding.
+
+## 7. What not to measure
+
+Skip these, because they cost time without changing a decision:
+
+| Technique | When to skip it |
 | --- | --- |
-| Coverage % | Dùng nó để **tìm** nhánh chưa test, không phải để đạt một con số |
-| Load test | Trước khi có số liệu cho thấy nút thắt |
-| Full E2E | Thay đổi không chạm đường user quan trọng |
-| Refactor cho "sạch hơn" | Không nằm trong phạm vi ticket |
-| Thêm test cho code sẽ xoá | Nợ có hạn, không phải tài sản |
+| Coverage % | Use it to **find** untested branches, not to hit a number |
+| Load testing | Before something shows a bottleneck |
+| Full E2E | The change does not touch a critical user path |
+| Refactoring for cleanliness | Not in the ticket |
+| Tests for code that is about to be deleted | That is debt with an expiry date, not an asset |
 
-## 8. Khi nào bước kiểm chứng cuối cùng đã đủ
+## 8. When the last step was enough
 
-Dừng khi bước cuối **không đổi kết luận** — tức là bạn đã thử thứ mà nếu nó thất bại thì bạn sẽ
-làm khác đi, và nó không thất bại.
+Stop when the final step **does not change your conclusion** - you tried the thing that, had it
+failed, would have made you do something different, and it did not fail.
 
-| Bạn sắp nói | Bước kiểm chứng còn thiếu |
+| You are about to say | Verification step still missing |
 | --- | --- |
-| "Xong rồi" | Chạy gate thật, dán output thật |
-| "Test pass" | Prove-it-red, để chắc test hỏi đúng câu |
-| "Test cover cái này rồi" | Xóa-thả |
-| "Nó chỉ là thay đổi nhỏ" | Chạy script, đừng tin mắt thường |
-| "Review xong, không thấy vấn đề gì" | Mutation phần bạn đụng |
+| "Done" | Run the real gate, paste the real output |
+| "Tests pass" | Prove-it-red, to be sure the test asks the right question |
+| "That is covered by a test" | Delete-and-observe |
+| "It is only a small change" | Run the scripts; do not trust your eyes |
+| "Reviewed it, nothing looks wrong" | Mutate what you touched |
 
-## Bối cảnh
+## Context
 
-Các kỹ thuật trong mục 1, 2, 4, 5, 6 là những gì model đã tự làm khi đọc code cẩn thận — vì
-vậy chúng ở đây để nhắc, không phải để dạy. **Mục 3 là thứ nó không tự làm**, và đo được là
-một suite xanh vẫn có thể che một nhánh lỗi hoàn toàn không được bảo vệ.
+The techniques in sections 1, 2, 4, 5 and 6 are what a model does on its own when reading code
+carefully, so they are here as reminders, not lessons. **Section 3 is the one it does not do**, and
+it is measurably the one that matters: a green suite can hide a failure branch with no test at all.

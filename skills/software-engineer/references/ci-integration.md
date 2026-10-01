@@ -1,55 +1,56 @@
 # CI Integration
 
-Hai script đi kèm skill này được viết để chạy **trong CI của công ty**, không chỉ trên máy
-lập trình viên. Trang này là phần nối: cách cắm chúng vào pipeline, cách đọc exit code, và
-những chỗ dễ cắm sai.
+The scripts that ship with this skill are built to run **in a company's CI**, not only on a
+developer's machine. This page is the seam: how to wire them in, how to read the exit codes,
+and the places it is easy to wire them wrong.
 
-Vì sao file này tồn tại: script chạy được trên laptop nhưng hỏng trong CI thì chỉ tệ hơn
-không có script — nó biến một gate thành pass giả. Nguyên nhân phổ biến nhất là hiểu sai
-`MISSING` là `PASS`, và là copy lệnh mà không chạy thử trên cùng image.
+Why this file exists: a script that works on a laptop but breaks in CI is worse than no script,
+because it turns a gate into a false pass. The most common reasons are reading `MISSING` as
+`PASS`, and copying a command without running it on the same image.
 
-Điều kiện lọc: chỉ phần liên quan tới hai script này. Cách tổ chức pipeline, branch
-protection, release train nằm ở `references/enterprise-standards.md`.
+Filter: only what concerns these three scripts. How to organise a pipeline, branch protection,
+and release trains are in `references/enterprise-standards.md`.
 
-## Exit code là contract
+## Exit codes are the contract
 
-Đọc đúng bảng này. Nếu bạn map `2` thành `success`, bạn đã tự tạo ra một gate không tồn tại.
+Read this table correctly. Mapping `2` to `success` means you have invented a gate that does not
+exist.
 
-Exit code khác nhau giữa hai script, và đây là bảng **đã đo**, không phải suy ra:
+The two scripts disagree, and this table is **measured**, not inferred:
 
-| Script | Code | Nghĩa là gì | Trong CI |
+| Script | Code | Means | In CI |
 | --- | --- | --- | --- |
-| cả hai | `0` | Trong ngân sách | Xanh |
-| `verify` | `1` | Có gate fail | Đỏ — đúng mục đích |
-| `smells` | `1` | Có error, **hoặc** vượt `--max-warnings` | Đỏ |
-| `verify` | `2` | Không phát hiện được gate nào để chạy | Đỏ. Đây không phải pass |
-| `smells` | `2` | Dùng sai flag, config hỏng, rule pattern hỏng | Đỏ — lỗi cấu hình |
-| `verify` | `3` | Sai `--format`, hoặc `--config` không đọc được | Đỏ — lỗi cấu hình |
+| both | `0` | Within budget | Green |
+| `verify` | `1` | A gate failed | Red - the point |
+| `smells` | `1` | Errors, **or** over `--max-warnings` | Red |
+| `verify` | `2` | No gate could be detected to run | Red. This is not a pass |
+| `smells` | `2` | Bad flag, broken config, invalid rule pattern | Red - a configuration error |
+| `verify` | `3` | Bad `--format`, or unreadable `--config` | Red - a configuration error |
 
-Hai dòng cuối là chỗ dễ chép sai: `verify` dùng `3` cho **cả** lỗi cấu hình, còn `smells` dùng
-`2`. Một pipeline gộp chung hai script và map một code cho cả hai sẽ hỏng âm thầm ở một trong
-hai nhánh.
+The last two rows are the easy ones to get wrong: `verify` uses `3` for **both** kinds of
+configuration error, while `smells` uses `2`. A pipeline that treats the two as one script and maps
+a single code for both will fail silently in one of the two branches.
 
-Điểm dễ sai nhất: `verify` trả `2` khi repo không có lệnh nào để chạy. Một repo không có
-linter là quyết định của ai đó; một repo mà script **không tìm thấy** linter thì là lỗi cấu
-hình. Đừng gộp hai trường hợp đó, và đừng để CI coi `2` là xanh.
+The easiest mistake: reading `verify`'s `2` as "the repo has nothing to run". A repo with no linter
+is someone's decision; a repo where the script **cannot find** a linter is a configuration error.
+Do not conflate them, and do not let CI treat `2` as green.
 
-## Ba nơi cắm
+## Three places to wire it in
 
-| Nơi | Lệnh | Vì sao ở đó |
+| Where | Command | Why there |
 | --- | --- | --- |
-| Pre-commit | `smells.mjs --staged` | Rẻ, chạy mili giây, chặn secret và test bị tắt trước khi nó tồn tại trong history |
-| Required check mỗi PR | `ci.mjs --no-proof` | Đây là định nghĩa "xong" mà mọi người thực sự bị chặn |
-| Nightly / main | `verify.mjs` (không `--changed`) | Chạy root **và mọi workspace unit**, bắt được package bị bỏ sót bởi bản đồ affected |
+| Pre-commit | `smells.mjs --staged` | Cheap, runs in milliseconds, blocks secrets and disabled tests before they enter history |
+| Required check per PR | `ci.mjs --no-proof` | This is the definition of "done" people are actually blocked by |
+| Nightly / main | `verify.mjs` (no `--changed`) | Runs the root **and every workspace unit**, catching packages the affected map skipped |
 
-`ci.mjs` chạy `verify --changed`, `smells --changed`, rồi `proof`. Bỏ `--no-proof` ở PR để có
-mutation testing — nó chậm nhất nhưng là gate duy nhất bắt được nhánh không được test.
+`ci.mjs` runs `verify --changed`, `smells --changed`, then `proof`. Drop `--no-proof` on a PR to
+get mutation testing - the slowest gate, and the only one that catches an untested branch.
 
-### Mutation testing trong CI
+### Mutation testing in CI
 
-`proof.mjs` sửa file rồi trả lại, nên nó **không** chạy song song với job khác trên cùng
-checkout, và không chạy trên `pull_request_target` (fork có thể sửa workflow của bạn). Chạy nó
-ở job riêng:
+`proof.mjs` rewrites files and restores them, so it must **not** run alongside another job on the
+same checkout, and must not run on `pull_request_target` (a fork can edit your workflow). Give it
+its own job:
 
 ```yaml
 proof:
@@ -63,13 +64,13 @@ proof:
     - run: node .opencode/skills/software-engineer/scripts/proof.mjs
 ```
 
-Job này chạy lại test suite N lần (mỗi mutation một lần), nên nó chậm. Giữ nó ở required check
-nếu team chịu được; nếu không, chạy nightly và báo kết quả — nhưng **đừng báo là pass** khi nó
-chưa từng chạy.
+That job re-runs the suite N times, once per mutation, so it is slow. Keep it as a required check
+if the team can afford it; otherwise run it nightly and report the result - but **do not report a
+pass** if it has never run.
 
-Cột "Vì sao" quan trọng hơn trực giác: `--changed` ở PR và full ở main là hai lớp khác
-nhau. Chỉ có `--changed` thì một lỗi mapping package sẽ sống mãi; chỉ có full thì không ai
-chạy được vì quá chậm. Cần cả hai.
+The "Why" column matters more than intuition: `--changed` on a PR and a full run on main are two
+different layers. With only `--changed`, a bug in the package mapping lives forever; with only the
+full run, nobody runs it because it is too slow. You need both.
 
 ## GitHub Actions
 
@@ -81,15 +82,15 @@ chạy được vì quá chậm. Cần cả hai.
       --base origin/${{ github.base_ref }} --max-warnings 20 --format github
 ```
 
-`--format github` in ra workflow command (`::error file=...,line=...`) nên finding hiện thẳng
-trên tab **Checks**, đúng dòng.
+`--format github` prints workflow commands (`::error file=...,line=...`), so findings appear in
+the **Checks** tab on the right line.
 
-`--base` không bắt buộc: không có nó, script tự dò `merge-base` với `origin/main`,
-`origin/master`, `main`, `master`. Nó chỉ cần khi repo đó không có nhánh nào trong danh sách —
-và nguyên nhân gần như luôn là **checkout shallow**, xem điều kiện 3 bên dưới.
+`--base` is optional: without it the script auto-detects a `merge-base` against `origin/main`,
+`origin/master`, `main`, `master`. It is only needed when the repo has none of those branches -
+and the cause is almost always a **shallow checkout**, see condition 3 below.
 
-Nếu dùng Code scanning, `smells.mjs --format sarif` ra SARIF 2.1.0 để upload; `verify.mjs
---format sarif` cũng có, để gate thiếu hiện thành warning thay vì im lặng.
+With code scanning on, `smells.mjs --format sarif` emits SARIF 2.1.0 to upload. `verify.mjs
+--format sarif` does too, so a missing gate shows up as a warning instead of silence.
 
 ```yaml
 - run: node .../smells.mjs --changed --format sarif > smells.sarif
@@ -112,29 +113,31 @@ gate:
     expire_in: 1 week
 ```
 
-Đổi `--format json` thành `sarif` nếu GitLab của công ty có bật code quality. Artifact giữ
-lại kết quả để debug pipeline đã xoá.
+Switch `--format json` to `sarif` if your GitLab has code quality enabled. The artifact keeps the
+result for debugging a pipeline that has already been deleted.
 
-## Điều kiện để script cho kết quả đúng
+## Three conditions for a correct result
 
-Ba thứ này là nguyên nhân của mọi lần script "xanh một cách sai".
+These three are the cause of every "the script was green and it should not have been".
 
-1. **Cùng image với pipeline.** Node ở đây phải là node ở đó. Khác version là khác toolchain
-   và khác kết quả, và bạn sẽ debug sai thứ.
-2. **Toolchain đã cài, chưa cài tối thiểu.** Script không cài gì cả. Trong container sạch,
-   `cargo` hay `go` có thể không có; đó là lỗi setup, không phải kết quả verify. Cài dependency
-   ở step trước, và nếu cố tình bỏ qua thì báo `MISSING`, đừng giả vờ pass.
-3. **`fetch` đủ depth.** `verify.mjs --changed` cần `origin/main` để tính diff. Checkout mặc
-   định của GitHub Actions là shallow 1 commit, nên `merge-base` không có gì để so — script
-   rơi về "không có base" và báo quét 0 file. Sửa bằng `fetch-depth: 0`.
+1. **The same image as the pipeline.** Node here must be node there. A different version is a
+   different toolchain and a different result, and you will debug the wrong thing.
+2. **Toolchain installed, or deliberately not.** The scripts install nothing. In a clean
+   container `cargo` or `go` may be absent; that is a setup failure, not a verify result. Install
+   dependencies in an earlier step, and if you skip one on purpose report it `MISSING` rather
+   than pretending it passed.
+3. **Enough `fetch` depth.** `verify.mjs --changed` needs `origin/main` to compute a diff.
+   GitHub Actions' default checkout is shallow at one commit, so `merge-base` has nothing to
+   compare against - the script falls back to "no base" and reports scanning zero files. Fix with
+   `fetch-depth: 0`.
 
-Điểm 3 là cái âm thầm nhất: script chạy, exit 0, không quét gì cả. Nếu pipeline của bạn dùng
-shallow checkout, hãy kiểm tra nó **một lần** bằng cách cố tình làm hỏng một file trong PR và
-xem script có bắt không.
+Condition 3 is the quietest one: the script runs, exits 0, and scans nothing. If your pipeline uses
+a shallow checkout, verify it **once** by deliberately breaking a file in a PR and checking that
+the script notices.
 
-## Config dùng chung cho cả repo
+## Shared repo config
 
-Commit `.software-engineer.json` ở root, cùng file cho cả hai script:
+Commit `.software-engineer.json` at the root; one file for all three scripts:
 
 ```json
 {
@@ -158,41 +161,41 @@ Commit `.software-engineer.json` ở root, cùng file cho cả hai script:
 }
 ```
 
-Vì sao để rule của công ty ở file này thay vì fork `smells.mjs`: rule đó là chính sách của bạn,
-nó đổi theo chính sách, và nó phải review được như mọi thay đổi khác. Fork script là cách
-đảm bảo nó lệch với policy sau hai sprint.
+Why company rules live in this file rather than in a fork of `smells.mjs`: that rule is your
+policy, it changes with policy, and it deserves review like any other change. Forking the script is
+a reliable way to guarantee it has drifted from the policy two sprints later.
 
-`disable` và `severity` dùng khi công ty đã có linter riêng làm việc đó: `disable` bỏ hẳn,
-`severity` hạ xuống `warn` để vẫn thấy mà không chặn build.
+`disable` and `severity` are for when the company already has a linter doing that work: `disable`
+removes the rule entirely, `severity` drops it to `warn` so it stays visible without blocking.
 
-### Toàn bộ khóa cấu hình
+### Every config key
 
-Phần lớn flag có config tương ứng, và config thắng khi repo có cả hai. Bảng này để không phải
-đọc code để biết tên:
+Most flags have a config equivalent, and the config wins when a repo has both. This table exists so
+you do not have to read the code to learn a name:
 
-| Flag | Key | Mặc định |
+| Flag | Key | Default |
 | --- | --- | --- |
-| `--only <gate>` (lặp lại) | — | tất cả gate |
-| `--jobs <n>` | — | `1` |
-| `--timeout <ms>` | `verify.timeout` | không giới hạn |
-| `--base <ref>` | — | tự dò merge-base |
-| `--format` | — | `text` |
-| `--config <path>` | — | `.software-engineer.json` ở root |
-| `verify.gates.<gate>` | ghi đè hoặc `null` để tắt | tự phát hiện |
-| `verify.ignore[]` | glob thư mục bỏ qua | rỗng |
-| `verify.failFast` | dừng ngay khi có gate fail | `false` |
+| `--only <gate>` (repeatable) | - | all gates |
+| `--jobs <n>` | - | `1` |
+| `--timeout <ms>` | `verify.timeout` | unlimited |
+| `--base <ref>` | - | auto-detected merge-base |
+| `--format` | - | `text` |
+| `--config <path>` | - | `.software-engineer.json` at the root |
+| - | `verify.gates.<gate>` | auto-detected; set `null` to disable |
+| - | `verify.ignore[]` | glob of directories to skip |
+| - | `verify.failFast` | `false` |
 | `--max-lines` | `smells.maxLines` | `500` |
 | `--max-func-lines` | `smells.maxFuncLines` | `80` |
 | `--long-line` | `smells.longLine` | `160` |
-| `--max-warnings` | `smells.maxWarnings` | không giới hạn |
-| `--ignore <glob>` | `smells.ignore[]` | rỗng |
-| `--strict` | — | tắt; thêm `any`, non-null assert, dòng dài |
-| `smells.disable[]` | tắt rule theo id | rỗng |
-| `smells.severity.<id>` | `error` hoặc `warn` | theo mặc định của rule |
+| `--max-warnings` | `smells.maxWarnings` | unlimited |
+| `--ignore <glob>` | `smells.ignore[]` | empty |
+| `--strict` | - | off; adds `any`, non-null assertions, long lines |
+| - | `smells.disable[]` | rule ids to turn off |
+| - | `smells.severity.<id>` | `error` or `warn` |
 
-Rule do repo thêm trong `smells.rules[]` nhận thêm ba trường: `not` (regex miễn trừ),
-`test: true` (chỉ chạy trong file test), `config: true` (cũng chạy trong file config — mặc
-định chỉ secret rule chạy ở đó).
+Repo-supplied rules in `smells.rules[]` take three more fields: `not` (an exemption regex),
+`test: true` (only in test files), and `config: true` (also in config files - by default only
+secret rules run there).
 
 ## Pre-commit hook
 
@@ -201,21 +204,21 @@ Rule do repo thêm trong `smells.rules[]` nhận thêm ba trường: `not` (rege
 node .opencode/skills/software-engineer/scripts/smells.mjs --staged --max-warnings 999 || exit 1
 ```
 
-`--max-warnings 999` ở hook là có chủ ý: chặn error ngay, còn warning thì để cho commit đi
-vì hook chạy trên mọi commit và một warning đủ để khiến cả team bỏ qua nó. Budget thật đặt ở
-CI. Không dùng `--no-verify` để né nó — đó là điều tự ghi vào non-negotiables của skill.
+`--max-warnings 999` in the hook is deliberate: block errors immediately but let warnings through,
+because the hook runs on every commit and a single warning is enough to make a whole team ignore
+it. The real budget belongs in CI. Do not use `--no-verify` to skip it - that is written into the
+skill's own non-negotiables.
 
-## Khi script không phù hợp repo
+## When the scripts do not fit your repo
 
-Nếu script không tìm được gate trong repo của bạn, **cấu hình nó** bằng `gates` trong config,
-hoặc bỏ qua và chạy lệnh thật của CI. Đừng viết `|| true` để làm nó xanh: đó là cách nhanh
-nhất để biến một gate thành trang trí, và nó sẽ sống lâu hơn mọi ticket kỹ thuật bạn đang
-mở.
+If a script cannot find your gates, **configure it** with `gates` in the config, or leave it and
+run the pipeline's real command by hand. Do not write `|| true` to make it green: that is the
+fastest way to turn a gate into decoration, and decoration outlives every engineering ticket you
+will ever open.
 
-## Câu hỏi tự kiểm trước khi tin CI
+## Questions to ask before trusting CI
 
-- Nếu bỏ toàn bộ thay đổi của tôi, script có còn xanh không? Nếu có, nó đang không soát
-  thứ cần soát.
-- Tôi đã thấy nó đỏ chưa, hay chỉ thấy nó xanh? Một gate chưa từng fail là một gate chưa
-  được kiểm chứng.
-- Số file nó báo đã quét có khớp với số file trong diff không? Lệch là scope đang sai.
+- If I throw away all of my changes, is the script still green? If so, it is not guarding
+  anything.
+- Have I seen it go red, or only green? A gate that has never failed is an unverified gate.
+- Does the file count it reports match the diff? A mismatch means the scope is wrong.

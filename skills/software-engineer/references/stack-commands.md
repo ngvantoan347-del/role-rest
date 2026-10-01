@@ -1,59 +1,60 @@
 # Stack Commands
 
-Các gate thật theo từng ecosystem.
+The real gates, per ecosystem.
 
-**Quy tắc trên hết: config của dự án thắng.** `scripts` trong `package.json`, CI workflow,
-hoặc `Makefile` là nguồn sự thật — không phải bảng dưới đây. `node scripts/verify.mjs`
-phát hiện chúng; bảng này để bạn biết **nên tìm gì**.
+**The rule that overrides everything: the project's config wins.** `scripts` in
+`package.json`, the CI workflow, or the `Makefile` is the source of truth - not the table
+below. `node scripts/verify.mjs` detects them; this table tells you **what to look for**.
 
-Đường dẫn ở đây là tương đối tới thư mục chứa `SKILL.md`: skill được cài vào `.agents/skills/`,
-`.claude/skills/`, hay cache của OpenCode, mỗi nơi một vị trí, nên đường dẫn tuyệt đối bịa ra
-chỉ đúng ở máy của người viết skill.
+The paths here are relative to the directory holding `SKILL.md`: the skill installs into
+`.agents/skills/`, `.claude/skills/`, or the OpenCode cache, a different location in each, so
+invented absolute paths are only right on the machine of whoever wrote the skill.
 
-Không bịa lệnh rồi báo kết quả. Nếu dự án không có linter, hãy nói không có — đừng giả vờ
-lint pass.
+Do not invent a command and report a result. If the project has no linter, say it has none -
+do not pretend lint passed.
 
-## Thứ tự tìm
+## Where to look, in order
 
-1. CI config — `.github/workflows/*.yml`, `.gitlab-ci.yml`, `.circleci/config.yml`.
-   **CI chạy gì thì "xanh" nghĩa là gì.**
+1. CI config - `.github/workflows/*.yml`, `.gitlab-ci.yml`, `.circleci/config.yml`.
+   **What CI runs is what "green" means.**
 2. `package.json` scripts, `Makefile`, `justfile`, `Taskfile.yml`.
 3. `pyproject.toml` / `tox.ini` / `noxfile.py`, `Cargo.toml`, `go.mod`, `composer.json`,
    `Gemfile`, `build.gradle`, `*.csproj`, `Rakefile`.
 
-Cần phải biết gate **chạy bao lâu**. Trong monorepo lớn, full suite có thể 20 phút — chạy
-nó mỗi lần sửa một dòng là tự tạo ra lý do bỏ qua verification.
+You have to know how long a gate **takes**. In a large monorepo the full suite can take 20
+minutes - running it after every one-line edit is creating your own reason to skip
+verification.
 
-## Ngôn ngữ chưa có detector
+## Languages with no detector
 
-`verify.mjs` phát hiện gate cho JS/TS, Python, Go, Rust, JVM, PHP, Ruby. Với những thứ dưới
-đây nó **không** có gì, nên bảng này là chỗ duy nhất cần biết:
+`verify.mjs` detects gates for JS/TS, Python, Go, Rust, JVM, PHP, Ruby. For the things below
+it has **nothing**, so this table is the only place you can find out:
 
 ```bash
 shellcheck script.sh && bash -n script.sh          # Shell
 clang-format --dry-run -Werror .                    # C/C++
 ctest --test-dir build --output-on-failure          # C/C++
 sqlfluff lint .                                     # SQL
-your-db-migrate --dry-run                           # SQL, trên bản copy
-docker build -t test . && docker run --rm test      # Dockerfile có start được không
+your-db-migrate --dry-run                           # SQL, on a copy
+docker build -t test . && docker run --rm test      # does the Dockerfile start
 ```
 
-Hai điều kiện không nằm trong bảng lệnh mà vẫn phải đúng:
+Two conditions are not in the command table and still have to hold:
 
-- **SQL:** không bao giờ apply migration lên database thật để "xem có chạy không".
-- **Docker / Terraform:** image build được nhưng không start được thì chưa xong. `terraform
-  apply` trên workspace thật thì chưa xong — `plan` thôi.
+- **SQL:** never apply a migration to a real database to "see if it runs".
+- **Docker / Terraform:** an image that builds but does not start is not done. `terraform
+  apply` against a real workspace is not done - `plan` only.
 
-## Báo cáo
+## Reporting
 
-Nêu lệnh và kết quả **thật**:
+Name the command and the **real** result:
 
 ```text
 Verification
-- `npx tsc --noEmit`  -> sạch, 0 lỗi
-- `npm test`          -> 42 pass, 2 fail (cả hai có trước, xem bên dưới)
-- `npm run build`     -> dist/ build trong 3.1s
-- `npm run lint`      -> dự án này không cấu hình
+- `npx tsc --noEmit`  -> clean, 0 errors
+- `npm test`          -> 42 pass, 2 fail (both pre-existing, see below)
+- `npm run build`     -> dist/ built in 3.1s
+- `npm run lint`      -> not configured in this project
 ```
 
-Đó là đáng tin. "Test pass" thì không, và im lặng về gate đã bỏ qua cũng không.
+That is credible. "Tests pass" is not, and neither is silence about a gate you skipped.

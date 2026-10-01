@@ -1,114 +1,115 @@
 # Anti-Patterns
 
-`smells.mjs` bắt được phần cơ học. File này là phần **cần phán đoán** — những thứ
-regex không bao giờ chạm tới, và cũng là những thứ thực sự làm hỏng hệ thống.
+`smells.mjs` catches the mechanical part. This file is the part that **needs judgment** -
+the things a regex never reaches, and the things that actually break systems.
 
-Vì sao tách riêng: một regex so khớp chuỗi. Nó không biết requirement là gì, không biết
-module nào sở hữu behavior, không biết điều gì sẽ đúng ở 10.000 bản ghi. Toàn bộ bảng dưới
-đây là loại lỗi mà bạn chỉ tìm ra bằng cách dừng lại và hỏi.
+Why it is separate: a regex matches strings. It does not know what the requirement is, which
+module owns the behavior, or what is correct at 10,000 records. Every row in the tables below
+is that kind of error, and you only find it by stopping and asking.
 
-## A. Lỗi làm hỏng hệ thống — không công cụ nào thấy
+## A. Errors that break systems - no tool sees them
 
-| Smell | Tại sao script không thấy | Tại sao nó nguy hiểm | Cách phát hiện |
+| Smell | Why the script cannot see it | Why it is dangerous | How to detect it |
 | --- | --- | --- | --- |
-| **Abstraction sai tầng** | Code đúng, chạy, chỉ là ở chỗ sai | Mỗi thay đổi business rule phải sửa ở mọi nơi, và ai cũng sợ sửa | Hỏi: "khi yêu cầu này đổi, ai cần được hỏi?" Không ai → sai tầng |
-| **Logic đúng, ý sai** | Không có cú pháp nào biết requirement | Feature ship nhưng làm sai đề bài, và test cũng xanh vì test viết theo cùng hiểu sai | Đi từng nhánh hỏi "nhánh này phục vụ điều gì?" |
-| **Hỏng khi scale** | 10 bản ghi thì đúng | Hỏng lúc traffic lên, lúc đó fix tốn gấp 10 | Luôn hỏi về N: N+1 query, thiếu pagination, connection không bound, cache không giới hạn |
-| **Hỏng khi chạy song song** | Test tuần tự đều xanh | Race condition hiếm, khó tái hiện, tốn kém nhất khi xảy ra | Hai request cùng lúc thì sao? Có idempotency key? Có transaction? |
-| **Hỏng trên production** | Dev máy 8 nhân, prod 2 nhân | Vấn đề chỉ xuất hiện sau khi deploy | Config ở đây có giống production? Timeout có set? |
-| **Lỗ hổng từ ý định** | Regex secret không hiểu "endpoint này lộ PII của user khác" | Rò dữ liệu là sự cố không hoàn tác | Mọi boundary có authN + authZ? Response có đúng mức dữ liệu cần? |
-| **Test xanh nhưng vô nghĩa** | Pass, coverage đầy | Tạo cảm giác an toàn giả | Xóa feature: test có fail không? Test khẳng định contract hay implementation? |
-| **Drift docs ↔ code** | Cả hai đều "chạy" | Người mới tin tài liệu sai và đi theo hướng sai | Sau mỗi thay đổi: docs nào giờ sai? |
+| **Abstraction at the wrong layer** | Correct code, running, just in the wrong place | Every business rule change means editing everywhere, and everyone is afraid to edit | Ask: "when this requirement changes, who has to be asked?" Nobody does → wrong layer |
+| **Right logic, wrong intent** | No syntax knows the requirement | The feature ships and does the wrong thing, and the tests are green because they were written from the same misreading | Walk each branch asking "what is this branch for?" |
+| **Breaks at scale** | Correct at 10 records | It breaks when traffic grows, and then the fix costs 10x | Always ask about N: N+1 queries, missing pagination, unbounded connections, unbounded cache |
+| **Breaks under concurrency** | Sequential tests all pass | Race conditions are rare, hard to reproduce, and most expensive when they happen | What happens with two requests at once? Is there an idempotency key? A transaction? |
+| **Breaks in production** | Dev box has 8 cores, prod has 2 | The problem only shows up after deploy | Is the config here the same as production? Are timeouts set? |
+| **Holes that come from intent** | A secret regex does not understand "this endpoint exposes another user's PII" | A data leak is an incident you cannot undo | Does every boundary have authN + authZ? Does the response carry exactly the data needed? |
+| **Green but meaningless tests** | Pass, full coverage | Creates false safety | Delete the feature: do the tests fail? Do they assert the contract or the implementation? |
+| **Docs ↔ code drift** | Both "work" | Newcomers trust the wrong doc and go the wrong way | After every change: which docs are now wrong? |
 
 ## B. Unverifiable claims
 
 | Smell | Why it hurts | Fix |
 | --- | --- | --- |
-| "Chắc là chạy rồi" | Kết luận từ suy đoán được ship như sự thật | Chạy lệnh, dán output |
-| "Đã fix" mà không giải thích nguyên nhân | Cùng một bug quay lại trong áo khác | Nguyên nhân gốc trong 2 câu ở phần bàn giao |
-| Kết quả test mô tả từ trí nhớ | Output bịa phá hủy niềm tin mọi câu trả lời sau | Chỉ báo cáo thứ terminal in ra |
-| "Tôi nghĩ vấn đề là X" mà không truy | Đoán tốn vòng lặp | Reproduce, rồi nêu nguyên nhân kèm `file:line` |
+| "It must work by now" | A conclusion from speculation shipped as fact | Run the command, paste the output |
+| "Fixed" with no root cause | The same bug returns in a different coat | Root cause in 2 sentences in the handoff |
+| Test results described from memory | Fabricated output destroys trust in everything after it | Only report what the terminal printed |
+| "I think the problem is X" without tracing | Guessing burns a whole loop | Reproduce, then name the cause with `file:line` |
 
 ## C. Deferred debt
 
 | Smell | Why it hurts | Fix |
 | --- | --- | --- |
-| `TODO` không chủ, không issue | Không ai dọn, không ai thấy | Làm xong, hoặc tạo issue và link trong comment |
-| "add later" quanh một capability thiếu | Contract có, behavior không | Làm xong hoặc gỡ bỏ surface đã expose |
-| `return null` / thân rỗng ở nơi đã hứa | Caller dựa vào nó, crash dời lên production | Throw lỗi "chưa implement" rõ ràng, hoặc implement |
-| Fake data trong production path | Demo data lọt tới user | Fixture chỉ thuộc về test |
-| Code bị comment | Code chết và che mất ý định | Xóa. Git nhớ mọi thứ. |
-| "Cleanup" là một mục backlog | Không bao giờ có ngày dọn | Dọn luôn trong thay đổi đang làm |
+| `TODO` with no owner, no issue | Nobody cleans it, nobody sees it | Finish it, or open an issue and link it in the comment |
+| "add later" around a missing capability | The contract exists, the behavior does not | Finish it or remove the surface you already exposed |
+| `return null` / empty body where something was promised | Callers depend on it, the crash moves to production | Throw a clear "not implemented" error, or implement it |
+| Fake data in a production path | Demo data reaches users | Fixtures belong to tests only |
+| Commented-out code | Dead code that hides the intent | Delete it. Git remembers everything. |
+| "Cleanup" as a backlog item | There is never a cleanup day | Clean up in the change you are already making |
 
 ## D. Structural chaos
 
 | Smell | Why it hurts | Fix |
 | --- | --- | --- |
-| Business rule nằm trong UI/controller/route | Rule không tái dùng, không test được | Chuyển sang tầng application/domain |
-| Vi phạm layer (UI import DB) | Thay đổi lan khắp, không còn đường lùi | One-way dependency; soi dòng import mới |
-| Import cycle | Không module nào tách ra được an toàn | Tách khái niệm chung ra module thứ ba |
-| `utils.ts` / `helpers.ts` | Tên vô nghĩa, không ai sở hữu | Tách theo trách nhiệm, đặt tên thật |
-| God object làm cả IO, rule, format | Không test được, không đổi được | Một đơn vị, một trách nhiệm |
-| File 1000+ dòng | Không ai review nổi, mọi thay đổi đều conflict | Tách theo trách nhiệm |
-| File >500 dòng, hàm >80 dòng | Dấu hiệu thiết kế chưa ngã ngũ | Tách tại các seam bạn gọi tên được |
+| Business rules in UI/controller/route | The rule is not reusable, not testable | Move it to the application/domain layer |
+| Layer violation (UI imports the DB) | Changes spread everywhere, there is no way back | One-way dependency; review every new import line |
+| Import cycle | No module can be extracted safely | Extract the shared concept into a third module |
+| `utils.ts` / `helpers.ts` | A meaningless name, no owner | Split by responsibility, use a real name |
+| A god object doing IO, rules, and formatting | Untestable, unchangeable | One unit, one responsibility |
+| A 1000+ line file | Nobody can review it, every change conflicts | Split by responsibility |
+| File >500 lines, function >80 lines | A sign the design has not settled | Split at the seams you can name |
 
-Đây chính là bức tranh trong ảnh: một bó dây ai cũng nối vào thứ gần nhất nhất. Nó vẫn "chạy"
-— nhưng không ai dám tháo một sợi mà chắc chắn nó không quan trọng. Cách sửa là **đặt tên các
-đầu mối và định hình có chủ đích**, không phải cố gắng hơn với đống dây.
+That is the picture: a bundle of wires everyone plugs into the nearest available thing. It
+still "works" - but nobody dares unplug a strand they are not certain is unimportant. The fix
+is to **name the endpoints and shape things deliberately**, not to try harder with the bundle.
 
 ## E. Copy-paste
 
 | Smell | Why it hurts | Fix |
 | --- | --- | --- |
-| Hai khối giống nhau | Bản thứ ba mới là lúc phải xử lý | Trừu tượng hoá ở lần ba (hoặc ở lần hai nếu chắc chắn sẽ phân kỳ) |
-| Copy validation / error handling | Message lệch nhau, rule lệch nhau | Một validator dùng chung |
-| Copy config / hằng số | Drift là chuyện thời gian | Một nguồn sự thật duy nhất |
-| "Copy file cũ rồi sửa" | Kế thừa luôn bug và code chết của file cũ | Bắt đầu từ cấu trúc đúng nhỏ nhất |
+| Two identical blocks | The third copy is when you have to deal with it | Abstract on the third occurrence (or the second if you are sure they will diverge) |
+| Copied validation / error handling | Messages drift, rules drift | One shared validator |
+| Copied config / constants | Drift is a matter of time | A single source of truth |
+| "Copy the old file and edit it" | Inherits the old file's bugs and dead code | Start from the smallest correct structure |
 
-## F. Data và failure
+## F. Data and failure
 
 | Smell | Why it hurts | Fix |
 | --- | --- | --- |
-| Không validate ở boundary | Rác vào, sự cố ra | Validate và normalize một lần ở biên |
-| SQL dựng bằng string | Injection | Luôn parameterized query |
-| Secret/token trong code, log, fixture | Lọt rồi là mất | Env hoặc secret store; `.env.example` mô tả shape |
-| Dữ liệu user thật trong test | Vi phạm riêng tư và pháp lý | Dữ liệu giả có cùng shape |
-| Migration không rollback | Mất dữ liệu không cứu được | Additive, reversible, chạy được với traffic cũ |
-| Query/upload không giới hạn | DoS dễ dàng | Limit, pagination, timeout |
-| `catch` rỗng | Lỗi biến mất, bug thành bí mật | Xử lý, hoặc log kèm context và lý do |
-| "Something went wrong" | Vô dụng lúc 3 giờ sáng | Có gì fail, id nào, nguyên nhân khả dĩ |
-| `null` cho cả "không có" lẫn "lỗi" | Caller không phân biệt được | Kiểu riêng hoặc trả lỗi tường minh |
-| Retry không giới hạn | Giấu lỗi thật, khuếch đại tải | Retry có hạn + backoff, rồi báo ra |
+| No validation at the boundary | Garbage in, incident out | Validate and normalize once at the edge |
+| SQL built from strings | Injection | Always parameterized queries |
+| Secrets/tokens in code, logs, fixtures | Leaked once, gone | Env or a secret store; `.env.example` describes the shape |
+| Real user data in tests | Privacy and legal violation | Fake data with the same shape |
+| Migration with no rollback | Data loss that cannot be undone | Additive, reversible, runnable against live traffic |
+| Unbounded queries/uploads | Trivial DoS | Limits, pagination, timeouts |
+| Empty `catch` | The error vanishes, the bug becomes a secret | Handle it, or log it with context and reason |
+| "Something went wrong" | Useless at 3am | What failed, which id, the likely cause |
+| `null` for both "absent" and "error" | Callers cannot tell them apart | A separate type, or an explicit error return |
+| Unbounded retry | Hides the real error, amplifies load | Bounded retry + backoff, then report it |
 
 ## G. Process shortcuts
 
 | Smell | Why it hurts | Fix |
 | --- | --- | --- |
-| Commit thẳng branch được bảo vệ | Không review được, không bisect được | Feature branch, commit nhỏ, PR |
-| Một commit chứa việc không liên quan | Không tách lẻ được | Một commit một concern |
-| Viết lại history đã public | Phá việc của người khác | Chỉ rebase commit chưa ai lấy |
-| `git add .` khi chưa biết có gì | Commit secret của người khác | Đọc `git status` + diff trước |
-| Bỏ qua test fail sẵn có | Giấu hỏng hóc thật | Báo cáo, không chôn |
-| "Thử cái này" để lại trong tree | Behavior lạ ship lên production | Revert, rồi áp dụng fix có lý do |
-| Cross-cutting change không plan | Refactor giả dạng feature | Plan, rồi làm theo từng bước |
+| Committing straight to a protected branch | Unreviewable, unbisectable | Feature branch, small commits, PR |
+| One commit with unrelated work | Cannot be split apart later | One commit, one concern |
+| Rewriting public history | Breaks other people's work | Only rebase commits nobody has pulled |
+| `git add .` without knowing what is in it | Commits someone else's secret | Read `git status` + the diff first |
+| Ignoring pre-existing test failures | Hides real breakage | Report it, do not bury it |
+| "Trying this out" left in the tree | Strange behavior ships to production | Revert, then apply the fix with a reason |
+| Cross-cutting change with no plan | Refactor disguised as a feature | Plan it, then work through it step by step |
 
 ## H. Documentation debt
 
 | Smell | Why it hurts | Fix |
 | --- | --- | --- |
-| README mô tả hành vi cũ | Gây hiểu sai có chủ đích | Sửa trong cùng thay đổi |
-| Quyết định không ai giải thích được | Người sau tranh lại từ đầu | Comment lý do, hoặc ADR |
-| Comment thuần túy tự tán | Che mất comment có nghĩa | Xóa |
-| Ví dụ lệch với config thật | Người mới không chạy được | Sinh lại và kiểm chứng |
+| README describes old behavior | Misleads on purpose | Fix it in the same change |
+| A decision nobody can explain | The next person re-argues it from scratch | Comment the reason, or write an ADR |
+| Noise comments that talk to themselves | Hide the comments that matter | Delete them |
+| Examples that diverge from the real config | Newcomers cannot run anything | Regenerate and verify |
 
-## Cách dùng file này
+## How to use this file
 
-Các mục C đến H **không phải** chuyện verification — chúng là về sở hữu, cấu trúc, và thiết
-kế. Đừng chạy thêm một lệnh để "chữa" một god object; phải tách nó ra.
+Sections C through H are **not** about verification - they are about ownership, structure, and
+design. Do not run one more command to "cure" a god object; you have to split it.
 
-Hai việc thuộc về verification thật sự, và đáng làm trước vì rẻ hơn phần còn lại của file:
+Two things here are real verification, and they come first because they are cheaper than the
+rest of the file:
 
-1. **`node scripts/proof.mjs`** — có test của bạn thật sự bắt được lỗi không.
-2. **Suy nghĩ ở N và ở đồng thời**, mục A. Không có lệnh nào kiểm tra cái này.
+1. **`node scripts/proof.mjs`** - do your tests actually catch the bug.
+2. **Think in N and in parallel**, section A. No command checks that.
 
-Danh sách đầy đủ các kỹ thuật và chỗ dừng: `references/verification-techniques.md`.
+The full list of techniques and stopping points: `references/verification-techniques.md`.

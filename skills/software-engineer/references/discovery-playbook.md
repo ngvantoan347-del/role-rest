@@ -1,119 +1,122 @@
 # Discovery Playbook
 
-Cách đọc codebase lạ đủ nhanh để sửa nó an toàn. Mục tiêu: **10 phút để có một plan đúng**,
-không phải đi hết một dự án.
+How to read an unfamiliar codebase fast enough to change it safely. The goal: **10 minutes
+to a correct plan**, not to walk the whole project.
 
-Vì sao phải kỷ luật thời gian: đọc sâu có giá trị, nhưng chỉ trong phạm vi dẫn tới quyết
-định. Đọc quá chỗ đó là trì hoãn đang mạo danh là cẩn trọng — và nó làm người dùng chờ.
+Why the time limit matters: deep reading has value, but only inside the radius that leads to
+a decision. Reading past that point is procrastination wearing the costume of diligence - and
+it makes the user wait.
 
-## 0. Đặt câu hỏi trước
+## 0. Ask the question first
 
-Trước khi đọc gì, viết một câu:
+Before reading anything, write one sentence:
 
-> **Hành vi quan sát được nào phải thay đổi, và cái gì phải giữ nguyên y hệt?**
+> **Which observable behavior has to change, and what has to stay exactly the same?**
 
-Mọi thứ bạn đọc phải phục vụ câu đó. File thú vị nhưng không liên quan thì bỏ qua. Câu này
-cũng là câu hỏi để tự kiểm tra khi đến lúc bàn giao.
+Everything you read serves that sentence. Interesting but irrelevant files get skipped. This
+sentence is also the self-check at handoff time.
 
-## 1. Trình tự 10 phút
+## 1. The 10-minute order
 
-Chạy theo thứ tự, dừng khi đã đủ để gọi tên file và lệnh chứng minh.
+Run in this order, stop when you can name the file and the command that proves it.
 
-| Bước | Lệnh | Biết được gì |
+| Step | Command | What it tells you |
 | --- | --- | --- |
-| 1. Hình dạng | `ls`, `tree -L 2`, `git ls-files \| head -100` | Layout, monorepo hay đơn |
-| 2. Manifest | `package.json` / `pyproject.toml` / `go.mod` / `Cargo.toml` | Ngôn ngữ, framework, entry point |
-| 3. **CI config** | `.github/workflows/*.yml`, `.gitlab-ci.yml` | **Lệnh lint/typecheck/test/build chuẩn** |
-| 3b. **Ai sở hữu** | `CODEOWNERS`, `.github/CODEOWNERS` | Path này thuộc đội nào — quyết định bạn có cần hỏi trước khi sửa |
-| 4. Entry point | `src/main.*`, `cmd/`, `server.ts` | Hệ thống khởi động thế nào |
-| 5. Seam | tìm symbol / route / config key cần đổi | Module sở hữu behavior |
-| 6. Ví dụ gần nhất | code đang làm việc tương tự | Pattern phải theo |
-| 7. Test | test của module sắp sửa | Behavior đúng, và pattern test |
-| 8. History | `git log --oneline -20 -- <path>`, `git blame` | Tại sao code trông như vậy |
-| 9. Lock | lockfile, `engines`, `.nvmrc`, `rust-toolchain` | Ràng buộc toolchain |
+| 1. Shape | `ls`, `tree -L 2`, `git ls-files \| head -100` | Layout, monorepo or single |
+| 2. Manifest | `package.json` / `pyproject.toml` / `go.mod` / `Cargo.toml` | Language, framework, entry point |
+| 3. **CI config** | `.github/workflows/*.yml`, `.gitlab-ci.yml` | **The canonical lint/typecheck/test/build commands** |
+| 3b. **Who owns it** | `CODEOWNERS`, `.github/CODEOWNERS` | Which team this path belongs to - decides whether you ask before editing |
+| 4. Entry point | `src/main.*`, `cmd/`, `server.ts` | How the system boots |
+| 5. Seam | find the symbol / route / config key to change | Which module owns the behavior |
+| 6. Nearest example | code that already does something similar | The pattern to follow |
+| 7. Tests | the tests of the module about to change | Correct behavior, and the test pattern |
+| 8. History | `git log --oneline -20 -- <path>`, `git blame` | Why the code looks like that |
+| 9. Lock | lockfile, `engines`, `.nvmrc`, `rust-toolchain` | Toolchain constraints |
 
-Bước 3 là bước quan trọng nhất và thường bị bỏ qua. **CI config là nguồn sự thật** về
-"xanh" nghĩa là gì. README nói "chạy `npm test`" còn CI chạy `npm run test:ci && npm run
-lint` với coverage threshold — đó là hai định nghĩa khác nhau về việc xong.
+Step 3 is the most important one and the most often skipped. **CI config is the source of
+truth** on what "green" means. The README says "run `npm test`" while CI runs `npm run
+test:ci && npm run lint` with a coverage threshold - two different definitions of done.
 
-Trong monorepo, CI config còn nói cho bạn biết **gate được scope thế nào**: affected-only
-hay toàn repo. Nếu pipeline chạy affected, thì verify cục bộ của bạn cũng phải scope theo —
-chạy full suite ở máy là thứ mà không ai làm vì nó quá chậm, và sự khác biệt đó là lý do
-CI xanh còn máy bạn thì không bao giờ xanh.
+In a monorepo, the CI config also tells you **how the gate is scoped**: affected-only or
+whole-repo. If the pipeline runs affected, your local verification has to be scoped the same
+way - running the full suite on your machine is the thing nobody does because it is too slow,
+and that difference is why CI is green and your machine never is.
 
-## 1b. Trong repo nhiều người dùng
+## 1b. In a multi-user repo
 
-Bước này không tồn tại ở project một người, và thiếu nó là nguyên nhân của việc sửa code
-của đội khác rồi tạo cho họ một PR đỏ mà không hiểu tại sao.
+This step does not exist in a one-person project, and skipping it is the cause of editing
+another team's code and handing them a red PR without understanding why.
 
-- `CODEOWNERS` ở `.github/CODEOWNERS` hoặc root: path này thuộc ai. Sửa nó khi chưa hỏi là
-  vi phạm, không phải là tiện lợi.
-- Chỗ lưu quyết định kiến trúc: `docs/adr/`, `docs/rfc/`, hoặc `ARCHITECTURE.md`. Đọc trước
-  khi đề xuất thứ mâu thuẫn với chúng.
-- `CONTRIBUTING.md`, `.editorconfig`, config linter/format: quy ước của repo.
-- `CHANGELOG.md` và tài liệu release: cho biết thay đổi nào từng được coi là đáng ghi.
+- `CODEOWNERS` at `.github/CODEOWNERS` or the root: who owns this path. Editing it without
+  asking is a violation, not a convenience.
+- Where decisions live: `docs/adr/`, `docs/rfc/`, or `ARCHITECTURE.md`. Read before
+  proposing anything that contradicts them.
+- `CONTRIBUTING.md`, `.editorconfig`, linter/formatter config: the repo's conventions.
+- `CHANGELOG.md` and release docs: which changes were ever considered worth writing down.
 
-Chi tiết về cách làm việc trong bối cảnh đó: `references/enterprise-standards.md`.
+Details on how to work in that context: `references/enterprise-standards.md`.
 
-## 2. Tìm seam
+## 2. Find the seam
 
-Tại sao: cấu trúc thật nằm ở chỗ module nào gọi module nào, không nằm ở cây thư mục. Cây
-thư mục nói cho biết tác giả *định* tổ chức thế nào; import mới là bằng chứng.
+Why: the real structure lives in which module calls which, not in the directory tree. The
+tree tells you how the author *intended* to organize; imports are the evidence.
 
-- **Tìm theo symbol, không lần theo cây thư mục.** Search tên hàm, route, config key, hoặc
-  chuỗi lỗi bạn cần. Đi từng bước một.
-- **Import graph là ranh giới.** Ai import module sắp sửa? Đó là **bề mặt tương thích**.
-  Nếu `frontend` import `db`, bạn đang chuẩn bị tạo vi phạm layer.
-- **Wiring nói thật.** Route table, DI container, plugin registry cho biết cái gì thực sự
-  nối với nhau — khác với cái gì chỉ tồn tại trên giấy.
-- **Data là nơi rủi ro.** Schema, migration, ranh giới serialize phải được đọc **trước khi**
-  thiết kế bất cứ thứ gì lưu hoặc gửi data.
+- **Search by symbol, do not walk the directory tree.** Search the function name, route,
+  config key, or the error string you need. One step at a time.
+- **The import graph is the boundary.** Who imports the module you are about to change?
+  That is the **compatibility surface**. If `frontend` imports `db`, you are preparing a
+  layer violation.
+- **Wiring tells the truth.** Route tables, DI containers, plugin registries show what is
+  actually connected - as opposed to what only exists on paper.
+- **Data is where the risk is.** Schema, migrations, serialization boundaries must be read
+  **before** you design anything that stores or sends data.
 
-## 3. Đọc history khi code trông sai
+## 3. Read history when the code looks wrong
 
 ```bash
 git log --oneline -20 -- path/to/file
-git log -S "someSymbol" --oneline        # symbol này vào/ra khi nào
+git log -S "someSymbol" --oneline        # when this symbol came in / went out
 git blame -L 40,90 path/to/file
 ```
 
-Code kỳ quặc thường là chủ ý: bug vendor, ca sửa timezone tại chỗ, workaround cho bug
-framework. Nếu `git blame` cho thấy một commit sửa bệnh ngay cạnh dòng trông thừa, giữ
-nó — và thêm comment giải thích nếu chưa có.
+Weird code is usually deliberate: a vendor bug, a one-off timezone fix, a workaround for a
+framework bug. If `git blame` shows a commit fixing something right next to a line that
+looks redundant, keep it - and add a comment explaining it if there is not one.
 
-Xóa một dòng "thừa" là cách nhanh nhất để tái tạo bug đã sửa từ 2 năm trước.
+Deleting a "redundant" line is the fastest way to resurrect a bug fixed two years ago.
 
 ## 4. Evidence table
 
-Giữ sự thật kèm nguồn để plan kiểm chứng được và bàn giao trích dẫn được.
+Keep facts with their source so the plan is verifiable and the handoff is citable.
 
-| Sự thật | Nguồn | Độ tin cậy |
+| Fact | Source | Confidence |
 | --- | --- | --- |
-| Unit test chạy bằng `npm test` | `package.json:scripts.test`, CI workflow dòng 42 | Đã verify |
-| Tạo user ghi vào bảng `users` | `src/repo/user-repository.ts:88` | Đã verify |
-| Rate limit áp ở gateway | chỉ có claim trong README, không thấy code | **Chưa verify — hỏi** |
+| Unit tests run with `npm test` | `package.json:scripts.test`, CI workflow line 42 | Verified |
+| User creation writes to the `users` table | `src/repo/user-repository.ts:88` | Verified |
+| Rate limit is enforced at the gateway | claim in the README only, no code found | **Unverified - ask** |
 
-- Claim không có `path:line` hoặc output lệnh là **giả thuyết**, và phải gọi đúng tên nó.
-- Giả thuyết quan trọng thì đọc thêm một phút để xác nhận. Rẻ lúc này, đắt lúc sau.
-- Không xác nhận được thì **hỏi người dùng**, đừng build trên nó.
+- A claim with no `path:line` or command output is a **hypothesis**, and you have to call it
+  by that name.
+- If a hypothesis matters, spend one more minute confirming it. Cheap now, expensive later.
+- If you cannot confirm it, **ask the user**, do not build on it.
 
-## 5. Dấu hiệu đã khám phá xong
+## 5. Signs discovery is done
 
-- Gọi tên được chính xác file sẽ sửa, kèm lý do từng file.
-- Biết lệnh nào chứng minh thay đổi hoạt động.
-- Biết file test hiện có để mở rộng.
-- Biết bề mặt tương thích: ai phụ thuộc vào thứ bạn đổi.
-- Mô tả được thiết kế trong hai câu.
+- You can name exactly the files you will change, with a reason for each.
+- You know the command that proves the change works.
+- You know the existing test file to extend.
+- You know the compatibility surface: who depends on what you are changing.
+- You can describe the design in two sentences.
 
-Dừng tại đây.
+Stop here.
 
-## 6. Khi nào hỏi thay vì đọc
+## 6. When to ask instead of read
 
-Hỏi sớm, hỏi cụ thể, kèm lựa chọn:
+Ask early, ask specifically, and bring options:
 
-- Hai thiết kế khả dĩ có chi phí khác nhau rõ rệt.
-- Yêu cầu mâu thuẫn với hành vi hiện tại ("thêm toggle" mà không có toggle).
-- Bất cứ thứ gì chạm auth, billing, xóa dữ liệu, hoặc compliance.
-- Migration không thể rollback rẻ.
+- Two plausible designs with clearly different costs.
+- The request contradicts current behavior ("add a toggle" when there is no toggle).
+- Anything touching auth, billing, data deletion, or compliance.
+- A migration that cannot be rolled back cheaply.
 
-Một câu hỏi chính xác rẻ hơn nhiều so với một giả định sai bị đóng vào diff lớn.
+One precise question is much cheaper than a wrong assumption frozen into a large diff.

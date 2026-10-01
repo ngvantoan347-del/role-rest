@@ -1,90 +1,92 @@
 # Definition of Done
 
-Ô nào chưa tick thì hoặc sửa ngay, hoặc báo là khoảng trống đã biết. **"Nó chạy rồi" không
-phải một mục trong danh sách này — bằng chứng mới là.**
+Any box you have not ticked is either fixed now or reported as a known gap. **"It works" is
+not an item on this list - evidence is.**
 
-Điều kiện lọc: checklist này chỉ hữu ích nếu bạn thực sự chạy nó, không phải đọc cho có.
-Các mục bỏ qua cũng phải được **báo**, chứ im lặng là dạng tệ nhất của im lặng.
+Filter criterion: this checklist is only useful if you actually run it, not read it for the
+appearance. Skipped items must be **reported** too, because silence is the worst form of
+silence.
 
-## Đúng đắn
+## Correctness
 
-- [ ] Làm đúng cái được yêu cầu, và **chỉ** cái được yêu cầu.
-- [ ] Nguyên nhân gốc đã hiểu và nói ra, không chỉ vá.
-- [ ] Gate đã chạy: test cụ thể, typecheck, lint, full suite, build — output đã lưu.
-- [ ] Edge case đã cân nhắc: rỗng, null, 0, âm, rất lớn, unicode, đồng thời.
-- [ ] Lỗi được xử lý có chủ đích; không gì bị nuốt.
-- [ ] Không thay đổi ngoài phạm vi trong diff.
+- [ ] Does the requested thing, and **only** the requested thing.
+- [ ] The root cause is understood and stated, not just patched around.
+- [ ] The gates ran: specific tests, typecheck, lint, full suite, build - output kept.
+- [ ] Edge cases considered: empty, null, 0, negative, very large, unicode, concurrent.
+- [ ] Errors are handled deliberately; nothing is swallowed.
+- [ ] No out-of-scope changes in the diff.
 
-## Thiết kế
+## Design
 
-- [ ] Nằm ở tầng sở hữu trách nhiệm; dependency một chiều; không cycle mới.
-- [ ] Interface public và data shape được tài liệu hoá ở nơi consume.
-- [ ] Tương thích ngược được giữ, hoặc breaking change được nói to.
-- [ ] Dùng lại code sẵn có thay vì nhân bản.
-- [ ] Không god file, không hàm không giới hạn; nhất quán với quy ước dự án.
+- [ ] Sits at the layer that owns the responsibility; one-way dependency; no new cycles.
+- [ ] The public interface and data shape are documented where they are consumed.
+- [ ] Backward compatibility is preserved, or the breaking change is said out loud.
+- [ ] Existing code is reused instead of duplicated.
+- [ ] No god files, no unbounded functions; consistent with project conventions.
 
 ## Test
 
-- [ ] Mỗi bug fix có test hồi quy **fail trước khi fix**.
-- [ ] Behavior public mới có test, kể cả nhánh lỗi.
-- [ ] Tất định: không network thật, clock thật, `sleep`, hay state dùng chung.
-- [ ] Không có gì bị skip, nới, hoặc xóa để lấy xanh.
+- [ ] Every bug fix has a regression test that **fails before the fix**.
+- [ ] New public behavior has tests, including the error branch.
+- [ ] Deterministic: no real network, no real clock, no `sleep`, no shared state.
+- [ ] Nothing is skipped, loosened, or deleted to get green.
 
 ## Hygiene
 
-- [ ] `node scripts/smells.mjs --changed` sạch, hoặc phát hiện đã được giải thích.
-- [ ] `node scripts/proof.mjs` chạy, và mọi mutation sống sót đã được test thêm **hoặc** ghi rõ
-      trong handoff là khoảng trống chưa verify.
-- [ ] Không còn `TODO`/`FIXME`/`HACK`/`temp`/`quick fix` trong cây.
-- [ ] Không code bị comment, log debug, hay file giàn giáo.
-- [ ] README, docs, ví dụ, `.env.example` đã cập nhật chỗ thay đổi làm sai.
-- [ ] Comment giải thích **tại sao**; comment thuần túy đã xóa. Changelog entry nếu có.
-- [ ] `git status` chỉ hiện thay đổi đã định.
+- [ ] `node scripts/smells.mjs --changed` is clean, or the findings are explained.
+- [ ] `node scripts/proof.mjs` ran, and every surviving mutant is either covered by a new
+      test **or** explicitly recorded in the handoff as an unverified gap.
+- [ ] No `TODO`/`FIXME`/`HACK`/`temp`/`quick fix` left in the tree.
+- [ ] No commented-out code, debug logging, or scaffolding files.
+- [ ] README, docs, examples, `.env.example` updated wherever the change made them wrong.
+- [ ] Comments explain **why**; noise comments are deleted. Changelog entry if there is one.
+- [ ] `git status` shows only the intended changes.
 
-**Nhắc lại:** mục `smells.mjs` ở trên chỉ là một phần. Checklist này không thay được phần
-judgment ở `references/anti-patterns.md`. Xanh script **không** phải là xong.
+**Reminder:** the `smells.mjs` item above is only a fraction. This checklist does not replace
+the judgment in `references/anti-patterns.md`. A green script is **not** done.
 
-## Security và data
+## Security and data
 
-- [ ] Không secret, token, dữ liệu user thật trong code, log, test, hay commit.
-- [ ] Input validated ở boundary; query parameterized; output escaped.
-- [ ] Auth và authorization được kiểm ở đường mới.
-- [ ] Migration additive, reversible, an toàn với traffic đang chạy.
-- [ ] Tenant id có trong **mọi** query, cache key, và log — không chỉ endpoint chính.
-- [ ] Dependency mới: lockfile cập nhật, licence tương thích, audit không có high severity.
+- [ ] No secrets, tokens, or real user data in code, logs, tests, or commits.
+- [ ] Input validated at the boundary; queries parameterized; output escaped.
+- [ ] Auth and authorization are checked on the new paths.
+- [ ] Migrations additive, reversible, safe against live traffic.
+- [ ] Tenant id present in **every** query, cache key, and log - not just the main endpoint.
+- [ ] New dependency: lockfile updated, license compatible, audit has no high severity.
 
-## Quy mô và tổ chức
+## Scale and organization
 
-Chỉ tick những mục thật sự liên quan; phần còn lại để trống có chủ đích hơn là tick mù.
+Only tick what is genuinely relevant; deliberately leaving the rest blank is better than
+ticking blindly.
 
-- [ ] Nghĩ ở N: N+1 query, pagination, connection, queue, cache đều có giới hạn.
-- [ ] Nghĩ ở đồng thời: hai request cùng lúc, retry, idempotency key, transaction.
-- [ ] Blast radius đã nêu: ai khác đang chạy cái này, và ai phải được thông báo.
-- [ ] Rollback nêu cụ thể, không phải "revert commit" khi nó cần viết data ngược.
-- [ ] Feature flag nếu có: có chủ, có mốc gỡ.
-- [ ] Path này thuộc đội khác: đã hỏi hoặc đã thông báo.
-- [ ] Trong monorepo: gate đã chạy cho package bị ảnh hưởng, không chỉ package sửa.
+- [ ] Think in N: N+1 queries, pagination, connections, queues, caches all have limits.
+- [ ] Think in parallel: two requests at once, retries, idempotency key, transaction.
+- [ ] Blast radius stated: who else runs this, and who has to be told.
+- [ ] Rollback is specific, not "revert commit" when it requires writing data back.
+- [ ] Feature flag if any: has an owner, has a removal date.
+- [ ] This path belongs to another team: asked or notified.
+- [ ] In a monorepo: the gate ran for the affected package, not just the edited one.
 
-## Bàn giao
+## Handoff
 
-- [ ] Tóm tắt mô tả **behavior**, không phải liệt kê file; file gom theo mục đích.
-- [ ] Quyết định thiết kế và lý do đã nêu.
-- [ ] Lệnh cụ thể và kết quả của chúng đã liệt kê.
-- [ ] "Not done / risks" trung thực và cụ thể.
-- [ ] Quyết định mở cần người dùng chọn được nói tường minh.
+- [ ] The summary describes **behavior**, not a file list; group files by purpose.
+- [ ] Design decisions and their reasons are stated.
+- [ ] The specific commands and their results are listed.
+- [ ] "Not done / risks" is honest and specific.
+- [ ] Open decisions the user has to make are stated explicitly.
 
 ```text
 ## What changed
-## Files          - <path> - <mục đích>
-## Design         - <hợp đồng đã chọn, và vì sao chọn thay vì phương án khác>
-## Verification   - `<lệnh>` -> <kết quả>
+## Files          - <path> - <purpose>
+## Design         - <the contract you chose, and why it over the alternatives>
+## Verification   - `<command>` -> <result>
 ## Not done / risks
 ## Decisions needed
 ```
 
-## Một câu hỏi duy nhất
+## One question only
 
-> Nếu kỹ sư kế tiếp chỉ đọc diff và phần bàn giao của tôi — họ có sửa được code này an
-> toàn không, và họ có tin lời tôi không?
+> If the next engineer reads only your diff and your handoff - can they safely change this
+> code, and will they believe you?
 
-Nếu không, thì chưa xong.
+If not, it is not done.

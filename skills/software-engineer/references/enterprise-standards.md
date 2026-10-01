@@ -1,197 +1,203 @@
 # Enterprise Standards
 
-Trong một công ty lớn, quy tắc đã tồn tại trước khi bạn tới. File này nói cách tìm ra
-chúng, cách làm việc trong chúng mà không phá chúng, và cách biết thay đổi có thuộc về
-bạn hay không.
+In a large company, the rules existed before you arrived. This file covers how to find them,
+how to work inside them without breaking them, and how to know whether a change is yours to
+make.
 
-Vì sao: ở nơi có hàng trăm kỹ sư, thứ bị bỏ qua dưới áp lực deadline không phải kỹ
-thuật — mà là **ranh giới trách nhiệm**. Sửa đúng code của team khác là cách nhanh nhất để
-biến một ticket T2 thành sự cố vận hành lúc nửa đêm.
+Why: in a place with hundreds of engineers, what gets dropped under deadline pressure is not
+the technique - it is **who owns it**. Fixing the right code in another team's area is the
+fastest way to turn a T2 ticket into a 3am operations incident.
 
-## 1. Chuẩn nằm ở đâu, và ai đổi được
+## 1. Where the standards live, and who can change them
 
-Repo đã encode sẵn những quy tắc mà không ai viết ra. Đọc chúng trước khi đoán. Thứ tự
-khám phá tổng quát nằm ở `references/discovery-playbook.md`; bảng dưới chỉ liệt kê những
-artefact đặc thù của công ty lớn.
+The repo has already encoded rules nobody wrote down. Read them before guessing. The general
+discovery order is in `references/discovery-playbook.md`; the table below only lists
+artefacts specific to a large company.
 
-| Artefact | Nói cho bạn biết | Ai sở hữu việc đổi nó |
+| Artefact | What it tells you | Who owns changing it |
 | --- | --- | --- |
-| `.github/workflows/*.yml` | **Định nghĩa "xong" thật**: check bắt buộc nào chạy, với lệnh gì | Platform/build team |
-| `CODEOWNERS` (`.github/CODEOWNERS`) | Ai duyệt path nào, và khi nào cần approval của owner | Từng team giữ dòng của mình |
-| Linter / formatter config | Cái gì bị cấm, ở mức phạt nào | Repo maintainer |
-| `.editorconfig` | Indent, khoảng trắng, newline cuối file | Repo, đổi bằng PR riêng |
-| ADR trong `docs/adr/` | Quyết định kiến trúc đã chốt — và cái gì đã bị loại với lý do | Tác giả ADR, chốt bởi team kiến trúc |
-| RFC doc | Thứ đang được đề xuất, ai chờ duyệt, hạn comment | Người mở RFC |
-| Architecture doc | Ranh giới tầng, dependency nào được phép | Team kiến trúc |
-| `CHANGELOG.md` | Hành vi nào đã đổi khi nào, và ai từng đụng | Người viết entry |
-| `CONTRIBUTING.md` | Quy trúc branch, commit, PR, review, release | Maintainer |
-| Release doc, config release tự động, tag | Cách release thực sự được phát hành | Release manager |
+| `.github/workflows/*.yml` | **What "done" really means**: which mandatory checks run, with what command | Platform/build team |
+| `CODEOWNERS` (`.github/CODEOWNERS`) | Who approves which path, and when owner approval is needed | Each team owns its own lines |
+| Linter / formatter config | What is banned, at what severity | Repo maintainer |
+| `.editorconfig` | Indent, whitespace, newline at end of file | The repo, changed in its own PR |
+| ADRs in `docs/adr/` | Decisions already closed - and what was ruled out, and why | ADR author, ratified by the architecture team |
+| RFC doc | What is under proposal, who is waiting for review, the comment deadline | Whoever opened the RFC |
+| Architecture doc | Layer boundaries, which dependencies are allowed | Architecture team |
+| `CHANGELOG.md` | Which behaviour changed when, and who touched it | Whoever wrote the entry |
+| `CONTRIBUTING.md` | Branch, commit, PR, review, release process | Maintainer |
+| Release doc, automated release config, tags | How a release actually ships | Release manager |
 
-**README là một claim. CI config là nguồn sự thật.** README nói "chạy `npm test`" trong
-khi CI chạy `npm run test:ci && npm run lint` với coverage threshold — đó là hai định nghĩa
-khác nhau về việc xong, và CI là cái thứ hai. Chi tiết về cách đọc CI config:
+**The README is a claim. CI config is the source of truth.** The README says "run
+`npm test`" while CI runs `npm run test:ci && npm run lint` with a coverage threshold - two
+different definitions of done, and CI is the second one. How to read CI config:
 `references/stack-commands.md`.
 
-- README và CI lệch nhau: **báo cáo lệch**, và sửa trong thay đổi đầu tiên bạn mở có liên
-  quan. Đừng mở PR dọn doc khi chưa có uy tín trong repo.
-- Không tìm thấy artefact nào: đó là dữ kiện, không phải lời xin lỗi. Nói "repo này
-  không có CODEOWNERS, tôi sẽ tag owner khi mở PR" — đừng đoán owner.
-- Config của dự án thắng mọi hướng dẫn chung, kể cả file này.
+- README and CI disagree: **report the mismatch**, and fix it in the first related change
+  you open. Do not open a doc cleanup PR before you have standing in the repo.
+- No artefact found: that is a fact, not an apology. Say "this repo has no CODEOWNERS, I
+  will tag the owner when I open the PR" - do not guess the owner.
+- Project config beats every general guideline, including this file.
 
-## 2. Ownership: code của bạn và code của họ
+## 2. Ownership: your code and their code
 
-Check CODEOWNERS **trước khi** sửa, không phải sau khi CI đỏ.
+Check CODEOWNERS **before** you edit, not after CI goes red.
 
-| Tình huống | Hành động |
+| Situation | Action |
 | --- | --- |
-| Path không có owner, hoặc owner là chính bạn | Làm bình thường |
-| Path có owner là team khác, thay đổi nhỏ và không đổi behavior | Hỏi họ trước, hoặc mở ticket của họ rồi chờ |
-| Phải sửa ngay, không có ai để hỏi | Sửa tối thiểu, nói rõ lý do, ghi rõ ai đã duyệt trong PR |
-| Team khác đang làm đúng chỗ đó | Route qua ticket của họ, không fork |
+| Path has no owner, or the owner is you | Proceed normally |
+| Path is owned by another team, change is small and behaviour-neutral | Ask them first, or open a ticket on their board and wait |
+| You must fix now and there is nobody to ask | Minimal change, state the reason, record who approved it in the PR |
+| Another team is already working in that exact spot | Route through their ticket, do not fork |
 
-Vì sao: **team sở hữu một path sở hữu on-call của path đó.** Dòng code bạn sửa lúc 23h
-là việc của họ lúc 23h, và họ không biết bạn đã đụng vào nó.
+Why: **a team that owns a path owns its on-call.** A line you change at 23h is their 23h,
+and they do not know you touched it.
 
-Khi buộc phải đụng code của team khác, ba điều bắt buộc:
+When you are forced to touch another team's code, three things are mandatory:
 
-1. **Diff tối thiểu.** Không format lại file, không đổi tên biến, không dọn comment.
-2. **Lý do nhìn thấy được** trong PR description và commit message — không phải trong
-   đầu người đọc.
-3. **Owner được thông báo** — tag team trong PR, không chỉ nhờ approval tự động.
+1. **Minimal diff.** No reformatting the file, no renaming variables, no tidying comments.
+2. **A visible reason** in the PR description and commit message - not in the reader's head.
+3. **The owner is notified** - tag the team in the PR, not just via the automatic approval.
 
-Còn một điều nữa: nếu thay đổi của bạn làm CI của họ đỏ, đó là sự cố của bạn cho tới
-khi bạn đẩy nó qua. Đừng để người khác phát hiện.
+One more thing: if your change turns their CI red, that is your incident until you push it
+through. Do not let someone else discover it.
 
-## 3. Convention của codebase lạ
+## 3. Conventions in an unfamiliar codebase
 
-File bạn đụng **không phải của bạn để restyle**. Đọc hai ba file cùng loại trước khi viết
-dòng đầu tiên, rồi bám theo: cách đặt tên, cách trả lỗi, cách comment, cách test.
+A file you touch is **not yours to restyle**. Read two or three files of the same kind before
+you write the first line, then follow it: naming, error returns, comments, tests.
 
-- Không đổi indent, không đổi tên biến cục bộ, không "cho gọn" trong PR feature.
-- Nếu convention đó thực sự sai hoặc đang gây bug: **tách thành PR riêng**, sau khi PR
-  chính merge. Sửa lặng lẽ là thay đổi mà không ai review.
-- Convention trông kỳ quặc: hỏi `git log` trước khi kết luận. Xoá dòng "thừa" là cách
-  nhanh nhất để tái tạo bug đã sửa từ hai năm trước.
+- Do not change indent, do not rename local variables, do not "tidy up" in a feature PR.
+- If the convention is genuinely wrong or causing bugs: **split it into its own PR**, after
+  the main PR merges. A silent fix is a change nobody reviewed.
+- A convention that looks odd: ask `git log` before you conclude. Deleting a "redundant"
+  line is the fastest way to resurrect a bug fixed two years ago.
 
-Vì sao: convention xấu nhưng nhất quán rẻ hơn convention đẹp nhưng chia nhánh. Diff
-thẩm mỹ trộn vào diff tính năng làm cả hai đều không review được.
+Why: a bad but consistent convention is cheaper than a good but branching one. An aesthetic
+diff mixed into a feature diff makes both unreviewable.
 
-## 4. Contract xuyên team
+## 4. Cross-team contracts
 
-Shared library, shared schema, event payload, protobuf — chúng là **public API có
-consumer nội bộ công ty**. Blast radius của chúng không nằm trong repo bạn đang mở; xem
-`references/scale-and-architecture.md` cho cách đo và lan truyền trong monorepo và shared
-package.
+Shared library, shared schema, event payload, protobuf - they are **public APIs with internal
+company consumers**. Their blast radius is not inside the repo you have open; see
+`references/scale-and-architecture.md` for how to measure it and how it propagates in a
+monorepo and a shared package.
 
-| Thay đổi | Blast radius | Cần gì |
+| Change | Blast radius | What it needs |
 | --- | --- | --- |
-| Thêm field optional, giữ field cũ | Consumer cũ vẫn chạy | Cùng thay đổi, không cần cửa sổ |
-| Đổi kiểu, đổi nghĩa, đổi tên field | Mọi consumer đọc field đó | Đo usage, cửa sổ deprecation có ngày, migration note |
-| Xoá export | Call site biên dịch lỗi ở consumer | Đo usage về 0 trước, hoặc major version |
-| Đổi hành vi mặc định | Consumer không hề biết mình đổi | Nâng major + changelog nói rõ |
+| Add an optional field, keep the old one | Old consumers keep running | Same change, no window needed |
+| Change a type, a meaning, a field name | Every consumer reading that field | Measure usage, dated deprecation window, migration note |
+| Remove an export | Call sites fail to compile at consumers | Drive usage to 0 first, or a major version |
+| Change default behaviour | Consumers do not know they changed | Bump major + a changelog entry that says so |
 
-- Đo trước khi gỡ: grep **toàn workspace**, không chỉ repo của bạn. Owner của shared
-  package thường có số liệu usage sẵn — hỏi, đừng tự suy.
-- Breaking change trong contract dùng chung = major version + ghi chú migration + mốc
-  thời gian gỡ, nói to trong `CHANGELOG.md`.
+- Measure before you remove: grep the **whole workspace**, not just your repo. Shared
+  package owners usually have the usage numbers already - ask, do not derive them.
+- A breaking change in a shared contract = major version + migration note + a removal date,
+  said out loud in `CHANGELOG.md`.
 
-Vì sao: trong một công ty, "một team" là cái bạn nhìn thấy. Team thứ tư mà bạn không biết
-tên vẫn đang gọi hàm đó lúc bạn xoá nó.
+Why: inside a company, "one team" is what you can see. The fourth team whose name you do not
+know is still calling that function when you delete it.
 
-## 5. Decision record
+## 5. Decision records
 
-Một thay đổi là **quyết định kiến trúc** khi nó ảnh hưởng >1 team, hoặc khó đảo ngược
-chi phí bằng một revert. Lúc đó viết ADR hoặc RFC: Context, Options, Decision,
-Consequences. Không mô tả code, không tóm tắt diff.
+A change is an **architectural decision** when it affects >1 team, or is expensive to undo
+beyond a single revert. Then write an ADR or RFC: Context, Options, Decision, Consequences.
+No code description, no diff summary.
 
-| Kích thước thay đổi | Artefact cần |
+| Change size | Artefact needed |
 | --- | --- |
-| Local fix, một file, đảo ngược bằng một revert | Không. Ghi lý do trong commit |
-| Đổi internal của một service, không ai gọi từ ngoài | Không. Comment tại chỗ |
-| Thêm abstraction từ biến thể thứ hai, ngay trong repo | Không. ADR là thừa |
-| Đổi contract dùng chung, đổi hạ tầng, đổi lưu trữ, thêm service | **ADR/RFC** |
-| Quyết định khó đảo ngược mà có hai phương án ngang nhau thật | **ADR/RFC**, kể cả khi code nhỏ |
+| Local fix, one file, undone by one revert | None. Record the reason in the commit |
+| Internal change to a service, nothing calls it from outside | None. A comment at the site |
+| Adding an abstraction from the second variant, inside the same repo | None. An ADR is noise |
+| Changing a shared contract, infrastructure, storage, adding a service | **ADR/RFC** |
+| A genuinely hard-to-reverse decision with two equal options | **ADR/RFC**, even when the code is small |
 
-Vì sao ADR cho quyết định nhỏ là noise. Noise làm mọi ADR thật bị bỏ qua trong lúc đọc,
-và người sau đó lại tranh lại quyết định cũ.
+Why an ADR for a small decision is noise. Noise makes every real ADR get skipped while
+reading, and the next person re-argues the old decision.
 
 ## 6. Branch protection, merge queue, release train
 
-| Cơ chế | Nó cấm gì | Bạn phải làm gì |
+| Mechanism | What it forbids | What you must do |
 | --- | --- | --- |
-| Protected branch | Push thẳng, bypass review | Mọi thay đổi qua branch + PR |
-| Required checks | Merge khi CI đỏ | Verify local **trước khi push** |
-| Merge queue | Push lên branch cũ, merge lúc branch lệch | Rebase/re-merge khi báo đỏ vì queue chỉ build commit mới |
-| Release train | "Ship khi nào xong" | Hỏi ngay mốc cắt khi nhận việc, không hỏi khi đã viết xong |
+| Protected branch | Direct push, bypassing review | Every change through branch + PR |
+| Required checks | Merging while CI is red | Verify locally **before pushing** |
+| Merge queue | Pushing to a stale branch, merging once it has drifted | Rebase/re-merge when it goes red because the queue only builds the new commit |
+| Release train | "Ship whenever it is done" | Ask for the cutoff date when you accept the work, not when you are finished |
 
-**Nhánh của bạn bây giờ là latency của người khác.** Một commit hỏng build giữa lúc merge
-queue đang xếp hàng chặn mọi người phía sau — kể cả những người không liên quan gì.
+**Your branch right now is someone else's latency.** A commit that breaks the build while
+the merge queue is queuing blocks everyone behind it - including people with nothing to do
+with it.
 
-Với release train: hỏi mốc cắt ở lúc nhận việc. Hỏi sau khi đã viết xong nghĩa là bạn
-đã tự quyết định rồi mới đi hỏi, và thường phải viết lại.
+For a release train: ask for the cutoff when you accept the work. Asking after you have
+already written it means you decided first and informed later, and often means rewriting it.
 
-## 7. Làm việc với review và CI
+## 7. Working with review and CI
 
-Pipeline đỏ nói **đúng một điều**: có cái gì fail. Đọc log từ dòng fail đầu tiên, không
-phải dòng cuối — dòng cuối thường là hậu quả của một lỗi dependency hoặc môi trường.
+A red pipeline says **exactly one thing**: something failed. Read the log from the first
+failing line, not the last - the last line is usually a consequence of a dependency or
+environment error.
 
-Pipeline xanh chỉ nói các check trong pipeline đó xanh. Nó **không** nói logic đúng,
-**không** nói không có hồi quy, **không** nói an toàn khi scale.
+A green pipeline only says the checks in that pipeline are green. It does **not** say the
+logic is right, **not** that there is no regression, **not** that it is safe at scale.
 
-- **Không bao giờ nới gate để lấy xanh.** Không skip test, không tắt lint rule, không
-  `--no-verify`, không thêm `|| true`, không hạ coverage threshold. Xem mục 7 của
+- **Never loosen a gate to get green.** No skipping tests, no disabling lint rules, no
+  `--no-verify`, no adding `|| true`, no lowering the coverage threshold. See section 7 of
   `SKILL.md`.
-- Gate hỏng trên nhánh bạn sở hữu: sửa ở đó, PR nhỏ riêng, kèm lý do vì sao lỗi tồn tại.
-- Gate hỏng sẵn có, hoặc thuộc team khác: **không sửa lặng**. Ghi lại, báo lên, và nếu nó
-  chặn verification của bạn thì nói rõ verification đang bị chặn.
-- Lệnh gate thật theo từng ecosystem: `references/stack-commands.md`.
+- A gate broken on a branch you own: fix it there, in a small separate PR, with the reason
+  the bug existed.
+- A gate that was already broken, or that belongs to another team: **do not fix it
+  silently**. Record it, report it, and if it blocks your verification say clearly that
+  verification is blocked.
+- Real gate commands per ecosystem: `references/stack-commands.md`.
 
-## 8. Nói ra giả định ngay lúc bạn giữ nó
+## 8. Say the assumption at the moment you make it
 
-Một giả định giữ trong đầu là việc của người khác phải gánh. Nói ra **tại lúc bạn giả định**,
-không phải lúc nó sai — lúc nó sai thì người khác đã tốn công rồi.
+An assumption kept in your head is work someone else has to carry. Say it **when you assume**,
+not when it turns out to be wrong - by then they have already paid for it.
 
-Mỗi giả định đáng nói cần một câu: điều tôi đang coi là đúng, và vì sao tôi tin điều đó.
+Every assumption worth saying needs one sentence: what I am treating as true, and why I
+believe it.
 
-| Tình huống | Nói gì |
+| Situation | What to say |
 | --- | --- |
-| Sửa code team khác, bị chặn | "Tôi cần sửa `<path>` vì `<lý do cụ thể>`. Diff N dòng, không đổi behavior cũ. Ai review phần này được?" |
-| Đổi contract dùng chung | "Tôi đề xuất thêm field X, giữ nguyên field cũ trong release này. Tôi cần số liệu consumer của field cũ — ai đang giữ?" |
-| Chưa chắc về hạn release | "Train kế tiếp cắt ngày `<date>`. Tôi cần biết cái này có kịp không trước khi đầu tư vào nó." |
-| Yêu cầu mơ hồ | "Có hai cách: A `<...>`, B `<...>`. Tôi nghiêng về A vì `<lý do gắn với mục tiêu>`." |
-| Gate đỏ không phải của mình | "Pipeline đỏ ở `<check>` từ commit `<sha>`, không liên quan thay đổi của tôi. Tôi để nguyên và báo." |
-| Đang đoán | "Tôi chưa xác nhận được `<điều đó>`. Tôi đang giả định `<giả định>` — nếu sai thì `<hậu quả>`." |
+| Editing another team's code, blocked | "I need to edit `<path>` because `<specific reason>`. N-line diff, no change to existing behaviour. Who can review this part?" |
+| Changing a shared contract | "I propose adding field X, keeping the old field in this release. I need the consumer numbers for the old field - who holds them?" |
+| Unsure about the release date | "The next train cuts on `<date>`. I need to know whether this makes it before I invest in it." |
+| Vague requirement | "There are two ways: A `<...>`, B `<...>`. I lean towards A because `<reason tied to the goal>`." |
+| A red gate that is not yours | "The pipeline is red at `<check>` since commit `<sha>`, unrelated to my change. I am leaving it alone and reporting it." |
+| Guessing | "I could not confirm `<that thing>`. I am assuming `<assumption>` - if that is wrong then `<consequence>`." |
 
-**Khi nào dừng và hỏi, khi nào đi tiếp và ghi cờ:** dừng khi đảo ngược được đắt — migration,
-xóa dữ liệu, đổi public contract, chạm auth hoặc billing, hoặc đụng path của team khác.
-Đi tiếp khi đảo ngược được một lệnh, và ghi cờ giả định trong PR. Bảng đầy đủ ở mục
-"Không được đứng sai chỗ" trong `SKILL.md`.
+**When to stop and ask, when to proceed and flag it:** stop when reversing it is expensive -
+migration, deleting data, changing a public contract, touching auth or billing, or touching
+another team's path. Proceed when reversing it is one command, and flag the assumption in
+the PR. The full table is in "Don't stand in the wrong place" in `SKILL.md`.
 
-Khi thay đổi đó có chạm dữ liệu người dùng, phần cần chứng minh bằng code không nằm ở
-đây — nó ở `references/compliance-and-data.md`.
+When a change touches user data, the part you have to prove with code is not here - it is in
+`references/compliance-and-data.md`.
 
-## 9. Vào một service lạ
+## 9. Entering an unfamiliar service
 
-Thứ tự đọc, dừng khi đã đủ để sửa nó an toàn:
+Reading order, stopping when you have enough to fix it safely:
 
-1. **Architecture doc / README** — coi là claim, chưa phải sự thật.
-2. **Entry point và một request thật** đi từ trên xuống: route → handler → service →
-   storage. Ghi lại những chỗ không nối với nhau.
-3. **Hai module sở hữu phần lớn traffic** — chúng là nơi bug tốn tiền nhất.
-4. **On-call runbook và alert đang bật** — đọc để biết lúc 3h sáng người ta nhìn vào đâu.
-5. **Ba incident gần nhất** (incident tracker, `git log --grep`). Chúng nói hệ thống thật sự
-   hỏng ở đâu, viết bằng ngôn ngữ của sự cố chứ không phải của kiến trúc.
-6. **Config và biến môi trường** — cái nào không có default là cơ hội hỏng lúc deploy.
-7. **CODEOWNERS** — để biết hỏi ai.
+1. **Architecture doc / README** - a claim, not yet a fact.
+2. **The entry point and one real request**, top down: route → handler → service →
+   storage. Write down the places that do not connect.
+3. **The two modules that own most of the traffic** - that is where bugs cost the most.
+4. **The on-call runbook and the alerts that are enabled** - read it to learn where people
+   look at 3am.
+5. **The three most recent incidents** (incident tracker, `git log --grep`). They say where
+   the system actually breaks, written in the language of incidents, not of architecture.
+6. **Config and environment variables** - anything with no default is a chance to break at
+   deploy time.
+7. **CODEOWNERS** - so you know who to ask.
 
-**Doc cũ là bình thường.** Hệ thống chạy lâu hơn doc của nó. Đừng sửa doc ngay khi mới
-vào; kiểm chứng, ghi nhận chỗ lệch, rồi sửa trong PR đầu tiên có liên quan.
+**Stale docs are normal.** A system outruns its docs. Do not fix the docs on day one; verify,
+note the mismatch, then fix it in your first related PR.
 
-Cách biết thật: đọc code, đọc test (test là hành vi đã được khẳng định), đọc config đang
-deploy thật, và hỏi đúng một người trong team đó. Bốn nguồn đó hợp lại gần với nhau thì
-bạn đã hiểu service.
+How to know what is true: read the code, read the tests (a test is behaviour already
+asserted), read the config that actually deploys, and ask exactly one person on that team.
+When those four sources roughly agree, you understand the service.
 
-## Liên tục
+## Continuity
 
-`references/review-playbook.md` cho phía còn lại của vòng lặp: đọc diff của người khác,
-tự review thay đổi của chính mình trước khi mở PR, và khi nào block.
+`references/review-playbook.md` covers the rest of the loop: reading someone else's diff,
+self-reviewing your own change before opening the PR, and when to block.

@@ -1,93 +1,94 @@
 # Testing Guide
 
-Test không phải nghi thức coverage. Nó là cách rẻ nhất để một thay đổi vừa an toàn khi thực
-hiện vừa an toàn khi giữ.
+Tests are not a coverage ritual. They are the cheapest way to make a change safe to ship and
+safe to keep.
 
-Điều kiện lọc: chỉ giữ phần quyết định **có test hay không** và **test có đáng tin
-không**. Cú pháp framework thì bạn tra nhanh hơn đọc ở đây.
+Filter criterion: keep only what decides **whether to test** and **whether a test is
+trustworthy**. You look up framework syntax faster than you read it here.
 
-## Cái nào đáng có test
+## What deserves a test
 
-| Thay đổi | Test |
+| Change | Test |
 | --- | --- |
-| Sửa bug | Test hồi quy: fail trước fix, pass sau fix |
-| Behavior public mới | Một test cho mỗi behavior đã tài liệu hoá, **kể cả nhánh lỗi** |
-| Refactor | Không. Suite hiện tại chứng minh behavior không đổi |
-| Migration | Up, down, và shape sau migration |
-| Sửa perf | Benchmark hoặc số đo ghi trong PR, **không** assert thời gian trong test |
-| Typo, comment, log message, format | Không |
+| Bug fix | Regression test: fails before the fix, passes after |
+| New public behavior | One test per documented behavior, **including the error branch** |
+| Refactor | None. The existing suite proves behavior did not change |
+| Migration | Up, down, and the shape after the migration |
+| Perf fix | A benchmark or a measurement in the PR, **not** a timing assertion in a test |
+| Typo, comment, log message, formatting | None |
 
-Không test: internal private, getter trả về cái vừa set, chính framework, hay giá trị trả
-về của một mock.
+Do not test: private internals, a getter returning what you just set, the framework itself,
+or a mock's return value.
 
-Một test vỡ mỗi lần refactor trong khi behavior không đổi là **chi phí không lợi ích gì**.
-Test đó đang bảo vệ code thay vì behavior — và khi behavior thật sự hỏng, nó vẫn xanh.
+A test that breaks on every refactor while behavior is unchanged is **pure cost**. That test
+is protecting the code instead of the behavior - and when the behavior really breaks, it is
+still green.
 
-## Test đáng tin
+## Trustworthy tests
 
-- **Một behavior mỗi test.** Tên là một mệnh đề:
-  `rejects orders after expiry` hơn `test order 3`. Khi test fail, tên phải nói lỗi ở đâu.
-- **Tất định.** Không network thật, không clock thật, không `sleep`, không random không
-  seed cố định, không phụ thuộc thứ tự chạy, không state dùng chung giữa test.
-  Flaky test tệ hơn không có test: nó dạy team bỏ qua cả suite.
-- **Assert vào behavior và contract** — giá trị trả về, row đã lưu, event phát ra,
-  HTTP response — không phải vào việc private method nào được gọi.
-- **Một lần mỗi test:** xóa feature thì test có fail không? Nếu vẫn xanh, test vô
-  dụng. `node scripts/proof.mjs` làm đúng việc này bằng cách cơ học, và làm nó cho **mọi**
-  nhánh trong diff thay vì một chỗ bạn tự nhớ.
-- **Assert rõ ràng.** Không pass âm thầm do assertion library cấu hình sai.
-- **Dọn dẹp.** Mỗi test để hệ thống như lúc nó tìm thấy: temp dir, DB row, env var,
-  global state, timer.
+- **One behavior per test.** The name is a proposition: `rejects orders after expiry` beats
+  `test order 3`. When a test fails, the name has to say where the bug is.
+- **Deterministic.** No real network, no real clock, no `sleep`, no unseeded randomness, no
+  dependence on run order, no shared state between tests. A flaky test is worse than no test:
+  it teaches the team to ignore the whole suite.
+- **Assert on behavior and contract** - return values, stored rows, emitted events, HTTP
+  responses - not on which private method got called.
+- **Once per test:** delete the feature, does the test fail? If it is still green, the test
+  is useless. `node scripts/proof.mjs` does exactly this mechanically, and does it for
+  **every** branch in the diff instead of one spot you remembered.
+- **Explicit assertions.** No silent passes from a misconfigured assertion library.
+- **Cleanup.** Every test leaves the system as it found it: temp dir, DB rows, env vars,
+  global state, timers.
 
-## Kim tự tháp
+## The pyramid
 
-- **Unit** — nhanh, thuần, không IO. Một behavior mỗi test.
-- **Integration** — biên thật: database, filesystem, queue, HTTP handler. Ít hơn, chậm
-  hơn, và là nơi lỗi wiring thực sự sống. Lỗi phần lớn nằm ở biên, nên test integration
-  hoàn trả chi phí tốt nhất.
-- **End-to-end** — chỉ đường user quan trọng. Đắt và flaky; giữ số lượng nhỏ và selector
-  bền.
+- **Unit** - fast, pure, no IO. One behavior per test.
+- **Integration** - real edges: database, filesystem, queue, HTTP handler. Fewer, slower, and
+  where real wiring bugs live. Most bugs sit at the edge, so integration tests pay back best.
+- **End-to-end** - only the critical user path. Expensive and flaky; keep the count small and
+  the selectors stable.
 
-Phần lớn tốc độ đến từ việc unit test không dính IO. Phần lớn bug đến từ biên. Đó là lý do
-không nên tối ưu cái này bằng cách cắt integration test.
+Most of the speed comes from unit tests not touching IO. Most bugs come from the edges. That
+is why you do not buy speed here by cutting integration tests.
 
 ## Test doubles
 
-**Fake cái chậm và không ổn định. Không bao giờ fake thứ đang được test.**
+**Fake what is slow and unstable. Never fake the thing under test.**
 
-- Ưu tiên **fake** hơn mock: một implementation trong bộ nhớ hành xử giống thật thì sống
-  sót qua refactor; mock gắn với call count thì không.
-- Nếu một fake thay thế dependency thật trong test, nó phải pass **cùng một contract
-  suite** — nếu không nó trôi thành implementation thứ hai, sai.
-- **Tiêm clock.** Test phụ thuộc "bây giờ" là test flaky nhất trong bất kỳ suite nào.
-- Pin timezone và locale trong test env. Timezone không pin sinh lỗi chỉ xuất hiện trên
-  máy của một người đóng góp.
-- Snapshot chỉ cho cấu trúc lớn ổn định. Snapshot nhỏ thay đổi ở mọi refactor và không
-  ai đọc kỹ chúng.
+- Prefer **fakes** over mocks: an in-memory implementation that behaves like the real thing
+  survives refactoring; mocks tied to call counts do not.
+- If a fake replaces a real dependency in a test, it has to pass the **same contract suite**
+  - otherwise it drifts into a second implementation, which is wrong.
+- **Inject the clock.** Tests that depend on "now" are the flakiest tests in any suite.
+- Pin timezone and locale in the test env. An unpinned timezone produces bugs that only appear
+  on one contributor's machine.
+- Snapshots only for large, stable structures. Small snapshots change on every refactor and
+  nobody reads them closely.
 
 ## Coverage
 
-Coverage là công cụ khám phá, không phải mục tiêu.
+Coverage is an exploration tool, not a goal.
 
-- Dùng nó để tìm **nhánh chưa test**, không để đuổi một tỷ lệ phần trăm.
-- Hướng 100% sinh ra test khẳng định ngôn ngữ lập trình, không phải hành vi.
-- Cái đáng theo dõi là coverage trên **dòng vừa thay đổi**: giảm ở đó là phát hiện thật.
+- Use it to find **untested branches**, not to chase a percentage.
+- Aiming for 100% produces tests that assert the programming language, not behavior.
+- The number worth tracking is coverage on **the lines you just changed**: a drop there is a
+  real finding.
 
-## Suite đang đỏ
+## The suite is red
 
-1. Xác nhận lỗi có trước thay đổi của bạn không (`git stash` rồi chạy lại, hoặc đọc
-   history của test đó).
-2. **Đừng làm nó biến mất.** Không skip, không xóa, không nới, không `.only`.
-3. Báo cáo: test nào fail, lệnh gì, và thay đổi của bạn có liên quan không.
-4. Nếu nó chặn verification của bạn, nói rõ verification đang bị chặn và vì sao.
+1. Confirm the failure predates your change (`git stash` and run again, or read that test's
+   history).
+2. **Do not make it disappear.** No skipping, no deleting, no loosening, no `.only`.
+3. Report: which test fails, which command, and whether your change is related.
+4. If it blocks your verification, say clearly that verification is blocked and why.
 
-Suite xanh bằng cách nới test là một lời nói dối, và lời nói dối đó sống tới production.
+A suite that is green because you loosened the tests is a lie, and that lie ships to
+production.
 
-## Chạy gate
+## Running the gate
 
-Từ hẹp tới rộng — test cụ thể, typecheck, lint, full suite, build — rồi
-`node scripts/smells.mjs --changed` (đường dẫn tương đối tới thư mục chứa
-`SKILL.md`).
+Narrow to wide - the specific tests, typecheck, lint, the full suite, build - then
+`node scripts/smells.mjs --changed` (relative to the directory containing `SKILL.md`).
 
-Suite chưa chạy là một claim chưa verify, và claim chưa verify không phải output chấp
-nhận được.
+A suite you have not run is an unverified claim, and an unverified claim is not an
+acceptable output.
