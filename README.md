@@ -60,10 +60,16 @@ Sizes the work first, so it does not slow down one-line fixes:
 | T2 standard | one feature or bug following existing patterns | Short plan, implement, verify |
 | T3 deep | new subsystem, data model, public interface | Full plan with options and risks, **waits for approval** |
 
-The rules that matter most:
+Every rule in the skill carries its reasoning, because a rule without a reason is one the
+model will ask about, or quietly route around when the task gets hard. The load-bearing
+ones:
 
 - **Evidence or it did not happen.** No "it should work now" - the handoff names the
-  commands that ran and what they printed.
+  commands that ran and what they printed. Consequence-based, not threshold-based: a
+  one-line change to auth is T3.
+- **Don't stand in the wrong place.** A table for when to proceed silently, when to verify
+  yourself, and when to ask once. Guessing wrong and asking constantly cost more than the
+  process saves.
 - **No deferred debt.** A `TODO` left in the tree needs an owner and a tracked issue.
 - **No placeholders in shipped paths.** `return null`, empty bodies, fake data.
 - **No unverified bugs.** Reproduce, failing test, root cause, fix the cause, explain it.
@@ -92,9 +98,16 @@ no linter is never mistaken for a clean one.
 
 `smells.mjs` audits a diff for the mechanical residue only: debt markers, hardcoded secrets,
 swallowed exceptions, disabled tests, type and lint suppressions, debug prints, stub
-functions, commented-out code, oversized files, and source changes with no test. Judgment
-smells - god objects, layer violations, copy-paste, scope creep - need a human, and live in
-`references/anti-patterns.md` rather than in a regex.
+functions, commented-out code, and source changes with no test.
+
+**The scripts are a safety net, not the review.** A regex compares strings. It cannot know
+what the requirement was, which module owns a behavior, or what breaks at ten thousand
+records. Both scripts print a reminder saying so on every run, and `smells.mjs` exits with
+that warning visible on purpose. The failures that actually cause incidents - wrong
+abstraction, correct code doing the wrong thing, breakage under concurrency, holes that come
+from intent - are found by reading. They are the first section of
+`references/anti-patterns.md`, and section 6 of `SKILL.md` lists the questions that surface
+them.
 
 ### Contents
 

@@ -45,8 +45,14 @@ const cyan = (s) => c("36", s)
 /* ---------- what to scan ---------- */
 
 const SRC_EXT = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", ".py", ".go", ".rs", ".java", ".kt", ".kts", ".rb", ".php", ".cs", ".c", ".h", ".cc", ".cpp", ".hpp", ".swift", ".scala", ".sh", ".bash", ".zsh", ".ps1", ".sql", ".vue", ".svelte", ".ex", ".exs"])
+// Config files carry credentials just as often as source does, so they are scanned too -
+// but only for secrets. Their style, TODOs, and empty catches are not this tool's business.
+const CONF_EXT = new Set([".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".properties", ".env", ".tfvars"])
+const SECRET_RULES = new Set(["hardcoded-secret", "github-token", "aws-key", "private-key", "bearer-literal"])
 const TEST_RE = /(^|\/)(tests?|__tests__|spec)\/|\.(test|spec)\.[a-z]+$|(^|\/)test_[^/]+$|[^/]+_test\.[a-z]+$/
-const isSource = (p) => SRC_EXT.has(extname(p).toLowerCase())
+const ext = (p) => extname(p).toLowerCase()
+const isSource = (p) => SRC_EXT.has(ext(p))
+const isConfig = (p) => CONF_EXT.has(ext(p)) || /(^|\/)\.env(\.|$)/.test(p.replace(/\\/g, "/"))
 const isTest = (p) => TEST_RE.test(p.replace(/\\/g, "/"))
 const norm = (p) => p.replace(/\\/g, "/")
 
@@ -66,7 +72,7 @@ function selectFiles() {
     list = git("ls-files") || []
   }
   return [...new Set(list)]
-    .filter((p) => isSource(p) && !ignore.some((g) => norm(p).includes(g)))
+    .filter((p) => (isSource(p) || isConfig(p)) && !ignore.some((g) => norm(p).includes(g)))
     .map((p) => resolve(root, p))
     .filter((p) => {
       try {
@@ -93,7 +99,8 @@ const RULES = [
   E("disabled-test", /(^|[^.\w])x(it|describe)\s*\(|\.(skip|only)\s*\(|@Ignore\b|@pytest\.mark\.(skip|xfail)|t\.Skip\s*\(|#\[ignore\]/, "test disabled or focused: a permanent blind spot"),
 
   // Secrets are checked everywhere, configs included - a key in a YAML file is still a leak.
-  E("hardcoded-secret", /(api[_-]?key|apikey|secret|password|passwd|token|private[_-]?key|access[_-]?key)\s*[:=]\s*["'][^"'\s]{8,}["']/i, "possible hardcoded secret: move to env/secret store", { not: /(example|sample|dummy|changeme|your[_-]?|xxx+|<[^>]+>|\$\{)/i }),
+  // `["']?` after the name handles quoted JSON/YAML keys: `"password": "value"`.
+  E("hardcoded-secret", /(api[_-]?key|apikey|secret|password|passwd|token|private[_-]?key|access[_-]?key)["']?\s*[:=]\s*["'][^"'\s]{8,}["']/i, "possible hardcoded secret: move to env/secret store", { not: /(example|sample|dummy|changeme|your[_-]?|xxx+|<[^>]+>|\$\{)/i }),
   E("github-token", /\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}|\bgithub_pat_[A-Za-z0-9_]{20,}|\bsk-[A-Za-z0-9]{20,}\b/, "token committed: rotate it now"),
   E("aws-key", /\bAKIA[0-9A-Z]{16}\b/, "AWS access key id committed"),
   E("private-key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/, "private key committed"),
@@ -142,13 +149,13 @@ function analyze(file) {
   if (content.includes("\0")) return
 
   const rel = norm(relative(root, file))
-  const isConf = CONFIG_LIKE.test(rel)
+  const isConf = CONFIG_LIKE.test(rel) || isConfig(file)
   const lines = content.split(/\r?\n/)
-  // A lint config or scanner holds these patterns as data, so only secret rules apply to it.
-  const rules = (strict ? [...RULES, ...STRICT_RULES] : RULES).filter((r) => !isConf || r.id.includes("secret") || r.id.includes("token") || r.id.includes("key"))
+  // A config, lint file, or scanner holds these patterns as data. Only secret rules apply.
+  const rules = (strict ? [...RULES, ...STRICT_RULES] : RULES).filter((r) => !isConf || SECRET_RULES.has(r.id))
   const test = isTest(rel)
 
-  if (lines.length > maxLines) {
+  if (!isConf && lines.length > maxLines) {
     add(rel, 1, "warn", "big-file", `file is ${lines.length} lines (limit ${maxLines}): split by responsibility`)
   }
 
@@ -164,7 +171,7 @@ function analyze(file) {
     if (!isConf && !test && comment && line.trim().length > 12 && CODE_COMMENT.test(line)) {
       add(rel, i + 1, "warn", "commented-code", "possible commented-out code: delete it, git remembers", line)
     }
-    if (STUB_HEAD.test(line)) {
+    if (!isConf && STUB_HEAD.test(line)) {
       const body = lines[i + 1]?.trim() ?? ""
       const next = lines.slice(i + 2).map((l) => l.trim()).find((l) => l !== "")
       if (STUB_RETURN.test(body) && next !== undefined && STUB_END.test(next)) {
@@ -220,8 +227,12 @@ for (const f of findings) {
 console.log(`  ${red(`${errors.length} error(s)`)}  ${yellow(`${warns.length} warning(s)`)}`)
 if (errors.length) {
   console.log(red("\n  fix the errors before calling this done. A finding you keep needs an owner and a tracked issue."))
-  console.log(dim("  need to keep one? Add a comment linking the issue, so the debt has an owner.\n"))
+  console.log(dim("  need to keep one? Add a comment linking the issue, so the debt has an owner."))
 } else {
-  console.log(dim(warns.length ? "\n  no blocking errors. Each warning is fixed now or explained in the handoff.\n" : "\n  clean.\n"))
+  console.log(dim(warns.length ? "\n  no blocking errors. Each warning is fixed now or explained in the handoff." : "\n  clean."))
 }
+console.log(dim("\n  This is a regex. It cannot see the failures that actually ship: wrong abstraction,"))
+console.log(dim("  logic that is correct but does the wrong thing, breakage at N records or under"))
+console.log(dim("  concurrency, and holes that come from intent. Those need reading - see"))
+console.log(dim("  references/anti-patterns.md, section A. A clean run here is not a finished change.\n"))
 process.exit(errors.length ? 1 : 0)

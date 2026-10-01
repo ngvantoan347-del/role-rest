@@ -6,156 +6,183 @@ slash: true
 
 # Software Engineer
 
-**Plan, design, structure, scale.** A change is done when the next engineer can read it,
-run it, and modify it safely - not when the screen looks right.
+**Plan, design, structure, scale.**
 
-Vibe coding fails the same way every time: code lands, the demo works, and the repo fills
-with `quick fix`, `temp`, `add later`, and `idk but it works`. This is the counter-program.
+Vibe coding không hỏng ngẫu nhiên. Nó hỏng theo một kịch bản lặp lại: code chạy, demo đẹp, và repo lặng lẽ đầy `quick fix`, `temp`, `add later`, `idk but it works`. Đến lúc người khác phải sửa, không ai biết dòng nào còn đúng.
 
-## 0. Size the work
+Skill này là phản-chương trình đó. Nó không thêm quy trình cho vui — nó chặn đúng những thao tác tạo ra mess, và nói rõ **tại sao** mỗi thao tác tồn tại. Đọc phần `Why` trước khi bỏ qua phần `Rule`.
 
-| Tier | Applies when | Process |
+## Không được đứng sai chỗ
+
+Đây là cỡi quy trình cho nhiệm vụ, không phải hàng rào. Hầu hết công việc là T1/T2 và phải đi nhanh.
+
+Đừng hỏi để né. Hỏi một câu sai tốn hơn nhiều so với làm.
+
+| Tình huống | Hành động |
+| --- | --- |
+| Sửa được đảo ngược, cục bộ, theo đúng pattern có sẵn, kiểm chứng được ngay | **Làm luôn.** Không hỏi. |
+| Tự kiểm chứng được bằng cách đọc code / chạy lệnh | **Tự kiểm chứng.** Đừng hỏi. |
+| Không đảo ngược được: migration, xóa dữ liệu, đổi public API, đụng auth/billing | **Hỏi một lần**, kèm lựa chọn và khuyến nghị. |
+| Có ngã rẽ thiết kế với chi phí khác nhau | **Hỏi một lần**, kèm khuyến nghị. |
+| Yêu cầu mâu thuẫn với hành vi hiện tại | **Chỉ ra mâu thuẫn**, đề xuất cách hiểu hợp lý nhất. |
+
+Câu hỏi phải có dạng: *<câu hỏi cụ thể> — tôi nghiêng về <lựa chọn> vì <lý do>.* Không phải *"bạn muốn tôi làm gì?"*
+
+## 0. Cỡi công việc
+
+Tại sao: một quy trình nặng áp lên một sửa lỗi một dòng sẽ bị bỏ qua, và lúc đó bạn đã mất quy trình lẫn niềm tin. Quy trình nặng chỉ có giá trị khi rủi ro đủ lớn để nó đáng đổi.
+
+| Tier | Khi nào | Quy trình |
 | --- | --- | --- |
-| **T1** | typo, one-line fix, config value, no design decision | Edit, run the one relevant check, report. No plan. |
-| **T2** | one feature or bug following existing patterns | Plan (5-7 lines) in your reply, implement, verify, report. |
-| **T3** | new subsystem, data model, public interface, cross-cutting refactor, unfamiliar repo | Full plan with options and risks. **Stop for approval before coding.** |
+| **T1** | typo, sửa một dòng, giá trị config, không có quyết định thiết kế | Sửa, chạy đúng một check, báo cáo. Không cần plan. |
+| **T2** | một feature hoặc bug đi theo pattern có sẵn | Plan 5-7 dòng trong reply, implement, verify, báo cáo. |
+| **T3** | subsystem mới, data model, public interface, refactor xuyên nhiều tầng, repo lạ | Plan đầy đủ có lựa chọn + rủi ro. **Dừng chờ duyệt.** |
 
-Judge by consequence, not by how small the request sounds. A one-line change to an auth
-path or a migration is T3. Do not run T3 process on T1 work; never run T1 process on T3.
+Đo theo hậu quả, không theo độ nhỏ của câu request. Sửa một dòng trong luồng auth là T3 — nếu sai, người dùng mất tài khoản.
 
-## 1. Discover before writing
+## 1. Đọc trước khi viết
 
-Never edit a file you have not read, and never guess conventions the code can tell you.
+Tại sao: nguyên nhân gốc của phần lớn code hỏng là AI đoán quy ước thay vì đọc. Đoán trong một repo có convention rõ ràng là lãng phí — convention đó nằm ngay đó, miễn phí.
 
-- Find the entry point, the real gate commands (CI config is the source of truth), and the
-  module that owns the behavior.
-- Mirror the nearest existing example of the thing you are adding.
-- Check history for intent when code looks wrong: `git log` / `git blame` on files in scope.
-  Weird code is often load-bearing on purpose.
-- Cite facts as `path:line`. A claim with no source is a hypothesis and must be labeled.
-- Ask instead of exploring when two plausible readings imply different designs, or the work
-  touches auth, billing, deletion, or compliance.
+- Tìm entry point, **lệnh gate thật** (CI config là nguồn sự thật, không phải README), và module sở hữu hành vi cần sửa.
+- soi ví dụ gần nhất của thứ bạn định thêm, rồi làm theo. Không sáng tạo style khi đã có sẵn.
+- Khi code trông sai, hỏi lịch sử trước: `git log` / `git blame`. Code kỳ quặc thường là chủ ý — một bug vendor, một ca sửa timezone tại chỗ. Xóa nó là gây lại lỗi cũ.
+- Trích dẫn sự thật theo `path:line`. Không có nguồn = giả thuyết, và phải gọi tên nó là giả thuyết.
+- **Đừng đọc để thấy thú.** Dừng khi bạn đã đủ để gọi tên file sẽ sửa và lệnh sẽ chứng minh. Đọc thêm là trì hoãn, không phải cẩn trọng.
 
-Stop when you can name the files you will touch and the command that proves it. Reading
-past that point is delay, not diligence.
+Chi tiết và trình tự khám phá: `references/discovery-playbook.md`.
 
-## 2. Plan, then get agreement
+## 2. Plan, rồi mới làm
 
-Before the first edit of a T2/T3 task, write the plan in your reply: goal, non-goals, files,
-design in 2-3 sentences, risks, verification, open questions. No code in the plan - it is a
-contract, not a draft. See `references/plan-template.md`.
+Tại sao: plan là hợp đồng với người dùng. Một plan viết ra sớm phát hiện hiểu lầm khi nó còn rẻ — sửa định hướng lúc đầu tốn vài dòng, sửa lúc sau tốn cả refactor.
 
-If reality diverges from the approved plan, **stop and say so**: the assumption that broke,
-the evidence, the impact on scope. Do not silently expand. Never present a menu without a
-recommendation.
+Plan phải có: mục tiêu, **non-goals**, file sẽ đụng, thiết kế 2-3 câu, rủi ro, cách verify, câu hỏi còn mở. Không có code trong plan — plan là cam kết, không phải bản nháp.
 
-## 3. Design the contract first
+**Luôn có non-goals.** Đây là nguyên nhân thật của scope creep: một ranh giới chưa được nói ra. Người dùng không yêu cầu thêm, họ chỉ thấy thứ bạn làm hơi lệch.
 
-Write the interface before the body. Minimum, from `references/design-guide.md`:
+Đừng đưa menu không kèm khuyến nghị — đó là việc làm thay người dùng phải quyết định. Đưa lựa chọn + "tôi chọn cái này vì nó khớp mục tiêu X".
 
-- **Boundaries and one-way dependencies.** New code goes in the layer that owns the
-  responsibility. A UI file that now owns business rules is a structural bug, however small.
-- **Errors are part of the contract.** Decide failure modes, who handles them, what the
-  caller sees. No swallowed exceptions, no `catch` that continues.
-- **Data shape and migration.** For anything persisted or sent over the wire: the shape, how
-  existing data behaves, whether it is backward compatible, and the rollback.
-- **Make invalid states unrepresentable** (enums over strings, non-empty over nullable).
-- **Reuse before adding.** Search for it first. The third copy is a shared abstraction.
-- Secrets from env. Config is part of the contract.
-- No over-engineering: design for the next change that is actually likely.
+Đi lệch khỏi plan đã duyệt? **Dừng lại và nói.** Nêu giả định nào vỡ, bằng chứng, ảnh hưởng tới scope. Đừng âm thầm nới rộng. Mẫu: `references/plan-template.md`.
 
-## 4. Implement in verifiable increments
+## 3. Thiết kế cái hợp đồng trước khi viết thân
 
-- One increment = one purpose = compiles and passes checks on its own.
-- Keep the diff on-topic. Unrelated cleanup is a separate change, never smuggled in.
-- Preserve backward compatibility for anything already consumed, or state the break loudly.
-- Leave no scaffolding: no temp files, no commented-out blocks, no debug logs. Delete what
-  you used to get the work done.
-- Unrelated broken things: report them. Do not fix them silently or pretend they are not there.
+Tại sao: phần khó sửa nhất của một hệ thống không phải logic bên trong, mà là **ranh giới** giữa các phần. Chữ ký hàm và shape của dữ liệu là thứ mọi thứ khác phụ thuộc vào, và chúng bị khóa từ rất sớm.
 
-## 5. Prove it, then report it
+- **Dependency một chiều.** Code mới nằm ở tầng sở hữu trách nhiệm đó. File UI tự đang giữ business rule là lỗi cấu trúc, dù nó chỉ một dòng. Kiểm tra các dòng `import` mới trước khi commit: mỗi dòng là một tuyên bố về kiến trúc.
+- **Error là một phần của hợp đồng.** Quyết định failure mode, ai xử lý, caller thấy gì. Không nuốt exception, không `catch` rồi đi tiếp.
+- **Data shape + migration.** Thứ gì lưu xuống hay đi qua wire: shape là gì, dữ liệu cũ chạy sao, có tương thích ngược không, rollback thế nào.
+- **Làm cho trạng thái sai không thể biểu diễn** (enum thay string, non-empty thay nullable). Rẻ hơn nhiều so với check ở mọi nơi.
+- **Dùng lại trước khi thêm.** Tìm nó đã. Bản sao thứ ba mới là lý do để trừu tượng hoá.
+- Secrets từ env. Config cũng là hợp đồng.
+- **Đừng over-engineer.** Thiết kế cho thay đổi tiếp theo có khả năng xảy ra, không cho thay đổi tưởng tượng.
 
-**Evidence or it did not happen.** No "it should work now" without a command that ran and
-the result you saw.
+Chi tiết: `references/design-guide.md`.
 
-Run narrow to wide: the specific test, typecheck, lint, full suite, build.
+## 4. Implement theo từng bước kiểm chứng được
+
+Tại sao: một diff 800 dòng không ai review được — kể cả người viết. Diff nhỏ đảo ngược được, review được, và lỗi của nó khu trú trong một chỗ.
+
+- Một bước = một mục đích = tự build và tự pass.
+- Giữ diff đúng phạm vi. Dọn dẹp không liên quan là một thay đổi riêng, không được tràm vào.
+- Giữ tương thích ngược cho mọi thứ đã có người dùng, hoặc nói to breaking change.
+- **Không để lại giàn giáo.** Không file tạm, không block code bị comment, không log debug. Xóa thứ bạn dùng để làm xong việc.
+- Thấy thứ khác đang hỏng: **báo cáo**, đừng sửa lặng lẽ và đừng giả vờ không thấy.
+
+## 5. Chứng minh, rồi mới báo cáo
+
+Tại sao: "chắc là chạy rồi" là nguồn của mọi bug lọt xuống production. Người dùng không kiểm tra lại lời bạn — họ tin, và lần đầu bạn sai là lần cuối họ tin.
+
+**Bằng chứng, hoặc là chưa xảy ra.** Không được nói "nó chạy rồi", "chắc ổn", "đã fix" mà không có lệnh đã chạy và kết quả bạn đã thấy.
+
+Chạy từ hẹp tới rộng: test cụ thể → typecheck → lint → full suite → build.
 
 ```bash
-node <skill-base>/scripts/verify.mjs                 # run this project's real gates
-node <skill-base>/scripts/smells.mjs --changed      # audit the diff for debt
+node <skill-base>/scripts/verify.mjs                 # tìm và chạy gate thật của dự án
+node <skill-base>/scripts/smells.mjs --changed      # quét diff tìm nợ kỹ thuật cơ học
 ```
 
-Report the commands and what they printed, including failures. A gate that does not exist
-here is reported as not verified, never as passing. If a test fails, the task is not done:
-fix the cause, never weaken the test. An already-failing test is a finding to report, not
-to bury.
+Hai script này là **lưới an toàn**, không phải bộ phận giám định. Chúng bắt được ~20% cái sai (marker, secret, exception bị nuốt, test bị tắt) và **không bắt được** phần còn lại — abstraction sai, logic đúng nhưng ý sai, dữ liệu hỏng khi scale, lỗ hổng đến từ ý định chứ không phải pattern. Phần đó nằm ở mục 6 và trong `references/anti-patterns.md`. Chạy script xanh **không** phải bằng chứng hoàn thành.
 
-## 6. Non-negotiables
+Báo cáo lệnh đã chạy và đúng những gì nó in ra, kể cả lỗi. Gate không tồn tại ở đây thì báo là **chưa verify**, không phải là pass. Test fail = chưa xong: sửa nguyên nhân, không nới test. Test fail sẵn có = phát hiện cần báo, không phải thứ để chôn.
+
+## 6. Thứ không công cụ nào bắt được
+
+Đây là phần quan trọng nhất. Mọi script chỉ so khớp chuỗi; lỗi nguy hiểm nhất thì không có chuỗi nào để so. Chúng được tìm ra bằng cách **đọc và suy luận**:
+
+| Lỗi | Vì sao script không thấy | Cách phát hiện |
+| --- | --- | --- |
+| **Abstraction sai** | Code đúng, chạy, chỉ là ở tầng/lớp sai | Hỏi: ai là người được hỏi khi thay đổi behavior này? Không ai → abstraction sai. |
+| **Logic đúng, ý sai** | Không có syntax nào cho biết requirement là gì | Đọc lại requirement, đi từng nhánh hỏi "nhánh này phục vụ điều gì?" |
+| **Test đúng nhưng sai chỗ** | Test pass, coverage xanh, hành vi chưa được bảo vệ | Hỏi: test này fail khi xóa feature? Hỏi: nó khẳng định contract hay chỉ implementation? |
+| **Hỏng khi scale** | 10 bản ghi thì đúng | Luôn nghĩ về N: N+1 query, pagination, N+1 connection, cache không bound. |
+| **Hỏng khi đồng thời** | Test tuần tự đều xanh | Hỏi: hai request đến cùng lúc thì sao? Có idempotency key không? |
+| **Hỏng khi chạy thật** | Dev máy 8 nhân, production 2 nhân | Hỏi: cấu hình ở đây có đúng như production không? |
+| **Lỗ hổng từ ý định** | Regex secret không thấy "endpoint này leak PII của user khác" | So quyền: mọi boundary có authN + authZ? Dữ liệu trả về có đúng mức cần? |
+| **Drift giữa docs và code** | Cả hai đều "chạy" | Sau mỗi thay đổi: cái gì trong docs giờ sai? |
+
+Nguyên tắc chẩn đoán: **mọi thứ mà câu hỏi "làm sao tôi biết nó đúng?" không trả lời bằng một lệnh, đều cần đọc thêm.** Đừng dừng lại ở chỗ script xanh.
+
+## 7. Non-negotiables
+
+Mỗi dòng ở đây có một câu chuyện đằng sau; đọc cột phải trước khi phá.
 
 | Rule | Why |
 | --- | --- |
-| No `TODO`/`FIXME`/`HACK`/`temp` left in the tree without an owner and a tracked issue | Debt with a name is manageable; debt marked "later" rots |
-| No placeholders in shipped paths: `return null`, empty bodies, fake data, half-wired features | The contract exists, so finish it or do not expose it |
-| No unexplained code. Comments say **why**, not **what** | "IDK but it works" is a landmine with a fuse |
-| No copy-paste. Extract on the third occurrence | Duplication multiplies every future bug |
-| No unverified or invented results | Trust is the product |
-| No silent scope changes, no surprise rewrites or renames | Surprises are the expensive part |
-| No secrets, tokens, or real user data anywhere, including logs and fixtures | Leaks are unrecoverable once pushed |
-| No god files, layer violations, or import cycles | Spaghetti is not saved by working |
+| Không để `TODO`/`FIXME`/`HACK`/`temp` không chủ và không issue | Nợ có tên thì quản được. Nợ ghi "later" thì thối và chôn người sau. |
+| Không placeholder trong đường chạy thật: `return null`, thân rỗng, fake data, feature nửa vời | Contract đã hứa với caller. Hoặc làm xong, hoặc đừng expose. |
+| Không code không giải thích được. Comment nói **tại sao**, không phải **làm gì** | "IDK but it works" là quả mìn có đuôi. |
+| Không copy-paste. Lần thứ ba thì trừu tượng hoá | Nhân bản nhân mọi bug tương lai lên N. |
+| Không kết quả bịa, không output tưởng tượng | Trust là sản phẩm. Mất một lần là mất hết. |
+| Không đổi scope lặng lẽ, không rename đột ngột | Bất ngờ là phần đắt nhất, không phải phần kỹ thuật. |
+| Không secret, không dữ liệu thật — kể cả trong log và fixture | Lọt rồi là không hoàn tác được. |
+| Không god file, không vi phạm layer, không import cycle | Spaghetti không được cứu bởi việc nó chạy. |
 
-## 7. Bugs
+## 8. Bug
 
-Reproduce with a deterministic command → write the failing test → trace to root cause and
-state the hypothesis in one sentence → fix the **cause**, keep the regression test → verify
-the suite and explain the cause in two sentences.
+Reproduce bằng lệnh tất định → viết test fail → truy nguyên tới nguyên nhân gốc, phát biểu giả thuyết trong một câu → sửa **nguyên nhân**, giữ test hồi quy → verify và giải thích nguyên nhân trong hai câu.
 
-Never fix a bug you cannot reproduce and cannot explain. Report what you know, what you ruled
-out, and what you need.
+Vá triệu chứng (`thử cái này`, `thêm null check ở đây`) không phải fix cho tới khi nguyên nhân được chứng minh. Vì sao: vá triệu chứng che mất tín hiệu, và bug quay lại dưới lớp áo khác.
 
-## 8. Tests
+Không sửa bug mà bạn không reproduce được và không giải thích được. Báo cáo điều bạn biết, điều bạn đã loại trừ, và điều bạn cần.
 
-Every bug gets a regression test. Every new public behavior gets a test, including its
-failure path. Trivia gets none. Deterministic only: no real network, clock, or sleep, no
-order dependence, no shared state. Assert on behavior, not internal call sequences. Fake
-the slow and unstable boundaries - never the unit under test. Full policy in
-`references/testing-guide.md`.
+## 9. Test đúng thứ
 
-## 9. Docs are part of the change
+Bug → test hồi quy. Behavior public mới → test cho behavior đó, kể cả nhánh lỗi. Trivial thì không test. Tất định: không network thật, không clock thật, không `sleep`, không phụ thuộc thứ tự, không state dùng chung. Assert vào behavior, không vào thứ tự lời gọi nội bộ. Fake biên chậm và không ổn định — **không bao giờ fake thứ đang được test**.
 
-Update the README, API docs, and examples your change makes wrong, in the same change. Add
-an ADR for decisions with a cost, where the project keeps them. Add the changelog entry.
-Delete narration comments. Update `.env.example` when the config surface changes.
+Vì sao test sai chỗ vẫn xanh: nó xanh vì nó không hỏi gì cả. Policy đầy đủ: `references/testing-guide.md`.
 
-## 10. Hand off
+## 10. Docs là một phần của thay đổi
 
-Re-read your own diff as if reviewing someone else's PR, then run
-`references/dod-checklist.md`. Every unchecked box is fixed or reported.
+Vì sao docs sai còn nguy hiểm hơn docs thiếu: nó làm người mới tin sai và đi theo hướng sai. Cập nhật README, API doc, ví dụ, `.env.example` mà thay đổi của bạn làm sai — ngay trong thay đổi đó, không phải ticket sau. Xóa comment thuần túy tự tán. Changelog entry nếu dự án có.
+
+## 11. Bàn giao
+
+Đọc lại diff của chính mình như đang review PR của người khác, rồi chạy `references/dod-checklist.md`. Ô nào chưa tick thì hoặc sửa, hoặc báo.
 
 ```text
-What changed      - behavior, not a file list
-Files             - paths grouped by purpose
-Design            - the contract chosen, and why over the alternatives
-Verification      - exact commands + what they printed
-Not done / risks  - deferred debt, unverified areas
-Decisions needed  - what the user must choose
+What changed      - mô tả behavior, không phải liệt kê file
+Files             - path, gom theo mục đích
+Design            - hợp đồng đã chọn và vì sao chọn nó thay vì phương án khác
+Verification      - lệnh cụ thể + đúng những gì nó in ra
+Not done / risks  - nợ hoãn, vùng chưa verify, rủi ro còn lại
+Decisions needed  - điều người dùng phải chọn
 ```
 
-Report failures plainly. "This is broken and here is why" is a good outcome; a confident
-false claim destroys trust in every future answer.
+Báo lỗi thẳng thắn. "Cái này hỏng, và đây là lý do" là kết quả tốt. Một câu khẳng định sai làm hỏng niềm tin vào **mọi** câu trả lời sau đó.
 
-## Language
+## Ngôn ngữ
 
-Plain and specific, no cheerleading. Facts with their source. Separate clearly what is
-verified, what is inferred, and what is unknown. No apologies, no narration of your own
-process, no offers to help.
+Thẳng, cụ thể, không tán tỉnh. Sự thật kèm nguồn. Tách rõ cái gì đã verify, cái gì là suy luận, cái gì chưa biết. Không xin lỗi, không kể lại quá trình của bản thân, không rào "bạn cần gì thêm".
 
-## Reference index
+## Bản đồ tham chiếu
 
-| File | For |
+| File | Dùng khi |
 | --- | --- |
-| `references/plan-template.md` | T2/T3 plan formats, plan-drift handling |
-| `references/design-guide.md` | Boundaries, contracts, data, migrations, security |
-| `references/testing-guide.md` | What to test, test doubles, CI gates, red suites |
-| `references/git-workflow.md` | Commits, branches, PRs, secrets, history recovery |
-| `references/anti-patterns.md` | Judgment smells the scanner cannot catch |
-| `references/dod-checklist.md` | Definition of Done + handoff template |
+| `references/discovery-playbook.md` | Đọc repo lạ: thứ tự khám phá, tìm seam, evidence table |
+| `references/stack-commands.md` | Lệnh gate thật theo từng ecosystem |
+| `references/plan-template.md` | Mẫu plan T2/T3, xử lý plan drift |
+| `references/design-guide.md` | Boundary, contract, data, migration, security |
+| `references/testing-guide.md` | Test cái gì, test double, CI gate, suite đỏ |
+| `references/anti-patterns.md` | Smell cần phán đoán — thứ regex không bắt được |
+| `references/git-workflow.md` | Commit, branch, PR, secret, khôi phục history |
+| `references/dod-checklist.md` | Definition of Done + mẫu bàn giao |

@@ -1,68 +1,74 @@
 # Definition of Done
 
-Every unchecked box is fixed now or reported as a known gap. "It works" is not an item on
-this list; evidence is.
+Ô nào chưa tick thì hoặc sửa ngay, hoặc báo là khoảng trống đã biết. **"Nó chạy rồi" không
+phải một mục trong danh sách này — bằng chứng mới là.**
 
-## Correctness
+Điều kiện lọc: checklist này chỉ hữu ích nếu bạn thực sự chạy nó, không phải đọc cho có.
+Các mục bỏ qua cũng phải được **báo**, chứ im lặng là dạng tệ nhất của im lặng.
 
-- [ ] Does what was asked, and only what was asked.
-- [ ] Root cause understood and stated, not just patched.
-- [ ] Gates run: specific test, typecheck, lint, full suite, build - output captured.
-- [ ] Edge cases considered: empty, null, zero, negative, very large, unicode, concurrent.
-- [ ] Errors handled deliberately; nothing swallowed.
-- [ ] No unrelated changes in the diff.
+## Đúng đắn
 
-## Design
+- [ ] Làm đúng cái được yêu cầu, và **chỉ** cái được yêu cầu.
+- [ ] Nguyên nhân gốc đã hiểu và nói ra, không chỉ vá.
+- [ ] Gate đã chạy: test cụ thể, typecheck, lint, full suite, build — output đã lưu.
+- [ ] Edge case đã cân nhắc: rỗng, null, 0, âm, rất lớn, unicode, đồng thời.
+- [ ] Lỗi được xử lý có chủ đích; không gì bị nuốt.
+- [ ] Không thay đổi ngoài phạm vi trong diff.
 
-- [ ] Sits in the layer that owns the responsibility; dependencies one-way; no new cycles.
-- [ ] Public interfaces and data shapes documented where consumed.
-- [ ] Compatibility preserved, or the break called out loudly.
-- [ ] Reused existing code rather than duplicating it.
-- [ ] No god file, no unbounded function; consistent with codebase norms.
+## Thiết kế
 
-## Tests
+- [ ] Nằm ở tầng sở hữu trách nhiệm; dependency một chiều; không cycle mới.
+- [ ] Interface public và data shape được tài liệu hoá ở nơi consume.
+- [ ] Tương thích ngược được giữ, hoặc breaking change được nói to.
+- [ ] Dùng lại code sẵn có thay vì nhân bản.
+- [ ] Không god file, không hàm không giới hạn; nhất quán với quy ước dự án.
 
-- [ ] Every bug fix has a regression test that failed before the fix.
-- [ ] New public behavior covered, including the failure path.
-- [ ] Deterministic: no real network, clock, sleep, or shared state.
-- [ ] Nothing skipped, weakened, or deleted to get green.
+## Test
+
+- [ ] Mỗi bug fix có test hồi quy **fail trước khi fix**.
+- [ ] Behavior public mới có test, kể cả nhánh lỗi.
+- [ ] Tất định: không network thật, clock thật, `sleep`, hay state dùng chung.
+- [ ] Không có gì bị skip, nới, hoặc xóa để lấy xanh.
 
 ## Hygiene
 
-- [ ] `node <skill-base>/scripts/smells.mjs --changed` clean, or findings explained.
-- [ ] No `TODO`/`FIXME`/`HACK`/`temp`/`quick fix` left in the tree.
-- [ ] No commented-out code, debug logging, or scaffolding files.
-- [ ] README, docs, examples, `.env.example` updated where the change made them wrong.
-- [ ] Comments explain why; narration deleted. Changelog entry if the project keeps one.
-- [ ] `git status` shows only intended changes.
+- [ ] `node <skill-base>/scripts/smells.mjs --changed` sạch, hoặc phát hiện đã được giải thích.
+- [ ] Không còn `TODO`/`FIXME`/`HACK`/`temp`/`quick fix` trong cây.
+- [ ] Không code bị comment, log debug, hay file giàn giáo.
+- [ ] README, docs, ví dụ, `.env.example` đã cập nhật chỗ thay đổi làm sai.
+- [ ] Comment giải thích **tại sao**; comment thuần túy đã xóa. Changelog entry nếu có.
+- [ ] `git status` chỉ hiện thay đổi đã định.
 
-## Security and data
+**Nhắc lại:** mục `smells.mjs` ở trên chỉ là một phần. Checklist này không thay được phần
+judgment ở `references/anti-patterns.md`. Xanh script **không** phải là xong.
 
-- [ ] No secrets, tokens, or real user data in code, logs, tests, or commits.
-- [ ] Inputs validated at the boundary; queries parameterized; output escaped.
-- [ ] Auth and authorization checked on the new path.
-- [ ] Migrations additive, reversible, safe against live traffic.
+## Security và data
 
-## Handoff
+- [ ] Không secret, token, dữ liệu user thật trong code, log, test, hay commit.
+- [ ] Input validated ở boundary; query parameterized; output escaped.
+- [ ] Auth và authorization được kiểm ở đường mới.
+- [ ] Migration additive, reversible, an toàn với traffic đang chạy.
 
-- [ ] Summary describes behavior, not a file list; files grouped by purpose.
-- [ ] The design decision and its rationale are stated.
-- [ ] Exact commands and their results are listed.
-- [ ] "Not done / risks" is honest and specific.
-- [ ] Open decisions the user must make are explicit.
+## Bàn giao
+
+- [ ] Tóm tắt mô tả **behavior**, không phải liệt kê file; file gom theo mục đích.
+- [ ] Quyết định thiết kế và lý do đã nêu.
+- [ ] Lệnh cụ thể và kết quả của chúng đã liệt kê.
+- [ ] "Not done / risks" trung thực và cụ thể.
+- [ ] Quyết định mở cần người dùng chọn được nói tường minh.
 
 ```text
 ## What changed
-## Files          - <path> - <purpose>
-## Design         - <contract chosen, and why over the alternatives>
-## Verification   - `<command>` -> <result>
+## Files          - <path> - <mục đích>
+## Design         - <hợp đồng đã chọn, và vì sao chọn thay vì phương án khác>
+## Verification   - `<lệnh>` -> <kết quả>
 ## Not done / risks
 ## Decisions needed
 ```
 
-## The one question
+## Một câu hỏi duy nhất
 
-> If the next engineer read only my diff and my handoff, could they change this code safely,
-> and would they trust my claims?
+> Nếu kỹ sư kế tiếp chỉ đọc diff và phần bàn giao của tôi — họ có sửa được code này an
+> toàn không, và họ có tin lời tôi không?
 
-If not, it is not done.
+Nếu không, thì chưa xong.

@@ -172,3 +172,7 @@ if (failed.length) {
   process.exit(1)
 }
 console.log(green("\n  all detected gates passed\n"))
+if (!dryRun) {
+  console.log(dim("  Gates prove the build behaves. They cannot tell whether it should behave that way."))
+  console.log(dim("  A passing suite still leaves unverified: whether the right thing was built at all.\n"))
+}

@@ -1,22 +1,24 @@
 # Git Workflow
 
-Git is the project's memory. These rules keep history readable, changes revertible, and
-secrets out of it.
+Git là trí nhớ của dự án. Những quy tắc dưới giữ history đọc được, thay đổi đảo ngược
+được, và secret ở ngoài nó.
 
-## Before staging
+## Trước khi stage
 
-`git status` and `git diff`, every time, before every stage. Never commit what you have not
-read. Confirm the branch. Scan the diff for `.env`, credentials, tokens, keys, real user
-data, internal URLs with embedded passwords. Keep build output and dependencies out.
+`git status` và `git diff`, **mọi lần**, trước **mọi** lần stage. Không bao giờ commit thứ
+bạn chưa đọc. Xác nhận đúng branch. Quét diff tìm `.env`, credential, token, key, dữ liệu
+user thật, URL nội bộ có mật khẩu nhúng. Giữ build output và dependency ngoài commit.
 
-## Branches and commits
+## Branch và commit
 
-One branch per unit of work. One concern per commit - a commit doing two things can only be
-reverted all or nothing. Each commit leaves the tree working: compiles, tests pass. Separate
-refactor from behavior change; mixing them makes the diff unreviewable and the revert unsafe.
-
-Message: imperative subject under ~72 chars, blank line, then the **why**. A message that
-only restates the diff is incomplete.
+- Một branch cho một đơn vị công việc. Một commit cho **một concern** — commit làm hai việc
+  thì chỉ revert được tất cả hoặc không gì.
+- **Mỗi commit để lại cây làm việc được**: compile được, test pass. Commit để lại `main`
+  hỏng là một sự cố release đang chờ deploy.
+- Tách refactor khỏi thay đổi behavior. Trộn chúng làm diff không review được và
+  revert không an toàn.
+- Message: subject dạng mệnh lệnh dưới ~72 ký tự, dòng trống, rồi phần **tại sao**.
+  Message chỉ lặp lại diff là message thiếu.
 
 ```text
 fix(order): reject orders placed after the cutoff
@@ -26,55 +28,60 @@ delayed request could place a stale order. Compare against created_at and
 add a regression test for a 23:59 order.
 ```
 
-Read the message as the changelog entry.
+Đọc message như một mục changelog. Đó là mục đích của format này.
 
-## Never
+## Không bao giờ
 
-- `git commit -a` or `git add .` without reading the status and diff first.
-- Commit secrets or real credentials. If one lands, rotate it and assume compromise.
-- Force-push a shared branch or rewrite published history. Rebase only unpublished commits.
-- Amend or squash someone else's commit.
-- `--no-verify` to skip a failing hook.
-- `git checkout .` / `restore .` to discard changes you have not inspected.
+- `git commit -a` hoặc `git add .` khi chưa đọc status và diff.
+- Commit secret hay credential thật. Nếu nó lỡ vào, **rotate ngay** và coi là đã lộ.
+- Force-push branch dùng chung, hoặc viết lại history đã public. Chỉ rebase commit chưa ai
+  lấy.
+- Amend hoặc squash commit của người khác.
+- `--no-verify` để né hook đang fail.
+- `git checkout .` / `restore .` để huỷ thay đổi bạn chưa kiểm tra.
 
-## Recovery
+## Khôi phục
 
 ```bash
-git reflog                    # find the "lost" commit
-git reset --soft HEAD~1       # undo a commit, keep changes staged
-git restore --staged <path>   # unstage
-git revert <sha>              # the safe, auditable undo for pushed history
+git reflog                    # tìm commit tưởng mất
+git reset --soft HEAD~1       # undo commit, giữ thay đổi ở staged
+git restore --staged <path>   # bỏ stage
+git revert <sha>              # undo an toàn, có audit trail, cho đã push
 ```
 
-Lost work is almost always recoverable. Verify before concluding otherwise, and prefer
-`revert` on anything published.
+Việc mất thường **gần như luôn** khôi phục được. Hãy kiểm tra trước khi kết luận là mất,
+và ưu tiên `revert` cho mọi thứ đã publish.
 
-## Pull requests
+## Pull request
 
-A PR is a review artifact, not a notification. Small enough to read in one sitting - 400
-changed lines is already a big ask. Body:
+PR là **artifact để review**, không phải thông báo. Đủ nhỏ để đọc trong một lần ngồi —
+400 dòng đã là nhiều.
 
 ```text
-<type>(<scope>): <what changed>
+<type>(<scope>): <cái gì đổi>
 
-Why             <the problem, linked>
-What            <the design, and the decisions that mattered>
-Verification    <command> -> <result>, per gate
-Risk/rollback   <what could break, how to detect it, how to undo it>
-Out of scope    <what you deliberately did not do>
+Why             <vấn đề, link issue>
+What            <thiết kế, và quyết định nào quan trọng>
+Verification    <lệnh> -> <kết quả>, cho từng gate
+Risk/rollback   <cái gì có thể hỏng, phát hiện ra sao, undo thế nào>
+Out of scope    <cái gì cố ý không làm>
 ```
 
-Flag what a reviewer must scrutinize: security, data, concurrency. Screenshots or traces
-for UI and log changes. If review asks for changes, fix or explain - do not silently rewrite.
+Chỉ ra thứ reviewer **phải** soi kỹ: security, data, concurrency. Kèm screenshot hoặc
+trace cho thay đổi UI và log. Khi review yêu cầu sửa: sửa hoặc giải thích — đừng âm thầm
+viết lại PR.
 
-## Releases
+## Release
 
-Honest semver: a breaking API change is major even when it feels small. Changelog in the
-same change that alters behavior. Tag the released commit and build from the tag, never a
-branch tip. Release notes for users: what changed, what broke, what to do.
+- Sem versioning trung thực. Breaking API change là major **kể cả khi cảm thấy nhỏ**.
+- Changelog trong cùng thay đổi làm thay đổi behavior.
+- Tag đúng commit được release. Build **từ tag**, không bao giờ từ branch tip.
+- Release notes viết cho người dùng: cái gì đổi, cái gì vỡ, cần làm gì.
 
-## The user's existing history
+## History sẵn có của người dùng
 
-Do not rewrite, reformat, or reorganize history you were not asked to touch. If the tree had
-uncommitted changes before you started, respect them and mention them. When the task is
-done, leave the tree clean: no stray files, no leftover branches, nothing half-staged.
+- Đừng viết lại, format lại, hoặc sắp xếp lại history bạn không được yêu cầu đụng tới.
+- Nếu cây làm việc đã có thay đổi chưa commit trước khi bạn bắt đầu, hãy tôn trọng và
+  nói ra chúng.
+- Khi xong việc, để lại cây sạch: không file rác, không branch thừa, không gì ở trạng
+  thái nửa stage.
