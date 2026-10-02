@@ -144,6 +144,50 @@ test("reach: --max stops printing callers without hiding the count", () => {
   has(res.out, "raise --max", "and the truncation is stated")
 })
 
+test("reach: an exported constant is not reported as dead code", () => {
+  // Running reach on its own harness found this. An exported path constant is imported by name,
+  // never invoked, so a call-site search returns zero - and "nobody calls it, dead code?" points
+  // someone at deleting something four files import.
+  const r = repo({
+    "package.json": PKG,
+    "src.js": "export const SCRIPT = 'x.js'\nexport function charge() { return 1 }\n",
+    "lib.js": "import { SCRIPT } from './src.js'\nexport const used = SCRIPT\n",
+  })
+  r.write("src.js", "export const SCRIPT = 'y.js'\nexport function charge() { return 2 }\n")
+  const res = run(REACH, [], r.dir)
+  has(res.out, "exported constant", "reports it as data, not as a callable: " + res.out.slice(0, 300))
+  // The constant's own line must never carry a dead-code verdict. `charge` in the same fixture is
+  // a function with no caller, so "dead code" legitimately appears for it - hence the line-scoped
+  // assertion rather than a whole-output one.
+  const constLine = res.out.split("\n").filter((l) => l.includes("SCRIPT"))
+  has(res.out, "imported by 1 production file", "names who imports it")
+  if (constLine.join(" ").includes("dead code")) throw new Error(`constant called dead: ${constLine.join(" ")}`)
+})
+
+test("reach: a symbol does not count as referencing itself", () => {
+  // Every symbol mentions itself in its own declaration. Counting that turns "nothing uses this"
+  // into "one reference" and hides the answer the reader came for.
+  const r = repo({ "package.json": PKG, "src.js": "export const UNUSED = 1\nexport const ALSO = UNUSED\n" })
+  r.write("src.js", "export const UNUSED = 2\nexport const ALSO = UNUSED\n")
+  const res = run(REACH, [], r.dir)
+  // Its own declaration and body are excluded, so the honest answer is "nothing references it"
+  // rather than the misleading "one reference" the self-mention used to produce.
+  has(res.out, "nothing in the tree references it", "excludes self-reference: " + res.out.slice(0, 300))
+})
+
+test("reach: a same-named local in another file is not claimed as this symbol's reference", () => {
+  // Name collisions are the limit of a reference search. Reporting them as evidence either way
+  // would be a confident wrong answer, so the tool states the limit instead.
+  const r = repo({
+    "package.json": PKG,
+    "src.js": "export const CONF = 1\n",
+    "other.js": "const CONF = 'unrelated local'\nexport const v = CONF\n",
+  })
+  r.write("src.js", "export const CONF = 2\n")
+  const res = run(REACH, [], r.dir)
+  has(res.out, "cannot be attributed", "says the limit instead of guessing: " + res.out.slice(0, 300))
+})
+
 test("reach: node_modules is not walked", () => {
   // A vendored copy of the same symbol would double or triple every count and take a minute.
   const r = repo(monorepo({ "node_modules/dep/index.js": "export function charge() { return 0 }\nconst x = charge()\n" }))

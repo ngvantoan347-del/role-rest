@@ -17,6 +17,7 @@ set -euo pipefail
 KEEP="${1:-}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FALSIFY="$HERE/skills/software-engineer/scripts/falsify.mjs"
+REACH="$HERE/skills/software-engineer/scripts/reach.mjs"
 DIR="$(mktemp -d "${TMPDIR:-/tmp}/falsify-demo-XXXXXX")"
 
 cleanup() {
@@ -142,10 +143,45 @@ echo
 echo "That gap is invisible to coverage, invisible to review, and invisible to a green CI"
 echo "run. It is what this repo is for."
 echo
-echo "Run it on your own repo:"
+echo "=============================================================="
+echo " step 4  the other blind spot: callers the diff cannot show you"
+echo "=============================================================="
+echo "Every check above looks at the diff. That is the limit. checkout() is called from"
+echo "checkout-page.js, which nobody edited - so the diff never mentions it, and reading"
+echo "the diff cannot find it."
+echo
+cat > "$DIR/checkout-page.js" <<'JS'
+import { checkout } from './checkout.js'
+export function render(cart, balance) {
+  if (balance < 1) return 'add funds'
+  return checkout(cart, balance)
+}
+JS
+# Both files are committed *before* the change under review. That ordering is the whole point: a
+# caller already in HEAD is not in the diff, which is why no amount of reading the diff finds it.
+git add -A
+git commit -qm 'checkout page calls checkout'
+python3 - "$DIR/checkout.js" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p, encoding='utf-8').read()
+s = s.replace("if (balance < total) throw new Error('insufficient balance')",
+              "if (balance < total * 1.05) throw new Error('insufficient balance')")
+open(p, 'w', encoding='utf-8').write(s)
+PY
+set +e
+node "$REACH" --no-color 2>&1 | sed -n '3,12p'
+set -e
+echo
+echo "checkout-page.js is in HEAD. The diff contains only checkout.js, so nothing in the diff"
+echo "mentions the page that calls it, and no test imports it. Either test it, or name it as"
+echo "unverified in the handoff. Reading the diff will not surface it either way."
+echo
+echo "Run both on your own repo:"
 echo
 echo "  node $FALSIFY"
+echo "  node $REACH"
 echo
-echo "(This script exits 0. The verifier exits 1 above, on purpose - that is the finding.)"
+echo "(This script exits 0. The checkers exit 1 above, on purpose - that is the finding.)"
 echo
 exit 0

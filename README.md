@@ -10,7 +10,8 @@ contradict it.**
 This repo makes that claim falsifiable.
 
 ```bash
-./demo.sh    # builds a real repo, runs a real suite, prints what it finds. No install.
+./demo.sh    # builds a real repo, runs a real suite, breaks it, and finds the caller
+             # nobody edited. No install, no dependencies.
 ```
 
 ```
@@ -222,7 +223,7 @@ skills/
 ## Developing on this repo
 
 ```bash
-npm test          # 98 tests across 6 suites
+npm test          # 101 tests across 6 suites
 npm run gate      # the skill's own gates, run on itself
 npm run spec      # SKILL.md satisfies the Agent Skills format
 npm run catalog   # skills/index.json matches disk, all references resolve

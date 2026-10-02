@@ -108,20 +108,25 @@ function changedSource() {
 
 /* ---------- exported names a change introduces ---------- */
 
-// Only names the change *introduces or modifies*. Re-exporting the whole surface of a file would
-// report every symbol in it, including ones nobody touched, and the signal would drown.
-// A name counts if it is declared with `export`, or defined at top level and exported by name.
+// Exported names, split by whether they can be called at all.
+//
+// The split is load bearing. An exported `const SCRIPT = join(dir, "x.mjs")` is imported, never
+// invoked, so a call-site search returns zero for it - and reporting that as "nobody calls it,
+// dead code?" sends someone to delete a path constant that four other files import. Data exports
+// get a reference count instead, which is the question people actually have about them.
 function exportedNames(file) {
   const src = stripNoise(readFileSync(file, "utf8"))
-  const names = new Set()
-  for (const m of src.matchAll(/export\s+(?:async\s+)?(?:function\*?|class|const|let|var)\s+([A-Za-z_$][\w$]*)/g))
-    names.add(m[1])
-  for (const m of src.matchAll(/^\s*(?:async\s+)?def\s+([A-Za-z_]\w*)/gm)) names.add(m[1])
-  for (const m of src.matchAll(/^func\s+([A-Za-z_]\w*)\s*\(/gm)) names.add(m[1])
-  for (const m of src.matchAll(/def\s+([A-Za-z_]\w*)\s*\(/g)) names.add(m[1])
+  const callable = new Set()
+  const data = new Set()
+  for (const m of src.matchAll(/export\s+(?:default\s+)?(?:async\s+)?(?:function\*?|class)\s+([A-Za-z_$][\w$]*)/g))
+    callable.add(m[1])
+  for (const m of src.matchAll(/export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)) data.add(m[1])
+  for (const m of src.matchAll(/^\s*(?:async\s+)?def\s+([A-Za-z_]\w*)/gm)) callable.add(m[1])
+  for (const m of src.matchAll(/^func\s+([A-Za-z_]\w*)\s*\(/gm)) callable.add(m[1])
+  for (const m of src.matchAll(/def\s+([A-Za-z_]\w*)\s*\(/g)) callable.add(m[1])
   // Python modules are called by name, not by member, so the module itself is a call site.
-  if (file.endsWith(".py")) names.add(excludeStem(file))
-  return [...names]
+  if (file.endsWith(".py")) callable.add(excludeStem(file))
+  return { callable: [...callable], data: [...data] }
 }
 
 const excludeStem = (f) => relative(root, f).replace(/\.[^.]+$/, "").replace(/[\\/](index|__init__)$/, "")
@@ -130,20 +135,51 @@ const excludeStem = (f) => relative(root, f).replace(/\.[^.]+$/, "").replace(/[\
 function touchedNames(file) {
   const all = exportedNames(file)
   const changedLines = changedLineNumbers(file)
-  if (!changedLines.size) return all // untracked file: everything in it is new
-  const src = stripNoise(readFileSync(file, "utf8"))
-  const lines = src.split("\n")
-  const near = (n) => n
-  return all.filter((name) => {
-    const re = new RegExp(`\\b${name.replace(/\$/g, "\\$")}\\s*[({=]`)
-    for (const [i, line] of lines.entries()) {
-      if (!changedLines.has(i + 1)) continue
-      if (re.test(line)) return true
-      // The declaration can sit above the body the change landed in.
-      if (lines.slice(Math.max(0, i - 2), i).some((l) => re.test(l))) return true
+  // An untracked file is entirely new, so everything in it counts.
+  if (!changedLines.size) return all
+  const lines = stripNoise(readFileSync(file, "utf8")).split("\n")
+  const changed = [...changedLines].sort((a, b) => a - b)
+
+  // A function is touched when the change lands anywhere in its body, not only on its declaration
+  // line. Matching the declaration alone missed the ordinary case - a guard tightened three lines
+  // into an existing function - and reported "no exported name touched", which is worse than
+  // useless because it reads as "nothing to worry about here".
+  const spanOf = (name) => {
+    const declRe = new RegExp(`^\\s*(?:export\\s+)?(?:default\\s+)?(?:async\\s+)?(?:function\\*?|class|def)\\s+${name.replace(/\$/g, "\\$")}\\b`)
+    const start = lines.findIndex((l) => declRe.test(l))
+    if (start < 0) return null
+    // The body runs until the next line at column zero that is not a continuation of this one.
+    // Cheap and good enough: a mis-set end line makes the report wider, never narrower.
+    let end = lines.length
+    for (let i = start + 1; i < lines.length; i++) {
+      const l = lines[i]
+      if (!l.trim()) continue
+      if (!/^\S/.test(l)) continue
+      if (/^[)\]}\s]*$/.test(l)) continue
+      end = i
+      break
     }
-    return false
-  })
+    return [start + 1, end]
+  }
+
+  return {
+    callable: all.callable.filter((name) => {
+      const re = new RegExp(`\\b${name.replace(/\$/g, "\\$")}\\s*[({=]`)
+      // Declaration line, or the two lines above a change, or anywhere in the body.
+      for (const ln of changed) {
+        if (ln - 1 < lines.length && re.test(lines[ln - 1])) return true
+        if (lines.slice(Math.max(0, ln - 3), ln - 1).some((l) => re.test(l))) return true
+      }
+      const span = spanOf(name)
+      return span ? changed.some((ln) => ln >= span[0] && ln <= span[1]) : false
+    }),
+    // A data export touched anywhere in a changed line counts. Call-site syntax is the wrong
+    // question for a constant, so a plain mention is.
+    data: all.data.filter((n) => {
+      const re = new RegExp(`\\b${n.replace(/\$/g, "\\$")}\\b`)
+      return lines.some((l, i) => changedLines.has(i + 1) && re.test(l))
+    }),
+  }
 }
 
 function changedLineNumbers(file) {
@@ -182,6 +218,27 @@ function callSitesFor(name) {
       if (!callRe.test(line) && !memberRe.test(line)) return
       hits.push({ file, rel, line: i + 1 })
     })
+  }
+  return hits
+}
+
+// Every mention of an identifier, not just a call. This is what a data export needs: a constant is
+// used by being named, and asking for a call site returns nothing for it.
+function referenceSitesFor(name, from) {
+  const escaped = name.replace(/\$/g, "\\$")
+  const re = new RegExp(`(?<![\\w$.])${escaped}\\b`)
+  const hits = []
+  for (const file of allFiles) {
+    // The declaring file is excluded. Every symbol mentions itself at least once - in its own
+    // declaration and often in its own body - so counting that turns "nothing uses this" into
+    // "one reference" and hides the answer the reader came for.
+    if (from && resolve(file) === resolve(from)) continue
+    const rel = relative(root, file).replace(/\\/g, "/")
+    stripNoise(readFileSync(file, "utf8"))
+      .split("\n")
+      .forEach((line, i) => {
+        if (re.test(line)) hits.push({ file, rel, line: i + 1 })
+      })
   }
   return hits
 }
@@ -236,16 +293,62 @@ if (!changed.length) {
 const LIMIT = num("--max", 12)
 let anyUntested = false
 let totalSymbols = 0
+let callablesWithCallers = 0
 const touchedFiles = new Set(changed.map((f) => resolve(f)))
 
 for (const file of changed) {
   const names = touchedNames(file)
   const rel = relative(root, file).replace(/\\/g, "/")
-  if (!names.length) {
+  if (!names.callable.length && !names.data.length) {
     console.log(`  ${dim(rel)}  ${dim("no exported name touched")}`)
     continue
   }
-  for (const name of names) {
+
+  for (const name of names.data) {
+    // An exported constant is imported by name, not called. Reporting a call-site count of zero
+    // would read as "dead code" and point someone at deleting something four files import.
+    const refs = referenceSitesFor(name, file)
+    const prod = refs.filter((h) => !isTest(h.file))
+    // Importers are looked for across every reference, tests included. A test importing the symbol
+    // is the common case for a test helper, and filtering tests out first - then searching what is
+    // left for an import - concludes nothing imports it, which is the opposite of the truth.
+    const importers = new Set(
+      refs
+        .filter((h) => {
+          const line = stripNoise(readFileSync(h.file, "utf8")).split("\n")[h.line - 1] || ""
+          return /^\s*import\b.*\bfrom\b|require\(\s*["'][^"']*["']/.test(line)
+        })
+        .map((h) => h.rel),
+    )
+    const testImporters = [...importers].filter((r) => isTest(join(root, r)))
+    const prodImporters = [...importers].filter((r) => !isTest(join(root, r)))
+    totalSymbols++
+    if (!refs.length) {
+      console.log(`  ${bold(name)}  ${dim(`${rel}  exported constant`)}\n` + dim("    nothing in the tree references it. Brand new, or dead."))
+      continue
+    }
+    const pkgs = new Set(prod.map((h) => h.rel.split("/").slice(0, -1).join("/") || "."))
+    const where = pkgs.size > 1 ? ` across ${pkgs.size} packages` : ""
+    console.log(`  ${bold(name)}  ${dim(`${rel}  exported constant, ${prod.length} production reference(s)${where}`)}`)
+    if (prodImporters.length) {
+      console.log(
+        dim(
+          `    imported by ${prodImporters.length} production file(s): ${prodImporters.slice(0, 3).join(", ")}${prodImporters.length > 3 ? ", ..." : ""}`,
+        ),
+      )
+    } else if (testImporters.length) {
+      console.log(dim(`    only tests import it (${testImporters.length}). Nothing in production depends on it yet.`))
+    } else {
+      // No import means no attribution. A file that declares its own `here` matches a search for
+      // someone else's `here`, and a bare reference count cannot tell the two apart. Saying
+      // "referenced without an import" reads like a finding when it is really a limitation, so the
+      // limitation is what gets reported.
+      console.log(dim("    no file imports it, so the references above cannot be attributed to this one."))
+      console.log(dim("    That is this check's limit with name collisions, not evidence either way."))
+    }
+  }
+
+  for (const name of names.callable) {
     totalSymbols++
     const sites = callSitesFor(name)
     // A test calling the symbol is the evidence, not a risk. Counting it as an untested caller
@@ -254,6 +357,7 @@ for (const file of changed) {
     const prod = sites.filter((h) => !isTest(h.file))
     const outsideDiff = prod.filter((h) => !touchedFiles.has(resolve(h.file)))
     const untested = outsideDiff.filter((h) => testsOf(h.file).size === 0)
+    if (prod.length) callablesWithCallers++
 
     console.log(`\n  ${bold(name)}  ${dim(`${rel}  ${prod.length} production call site(s)`)}`)
     if (!prod.length) {
@@ -267,7 +371,13 @@ for (const file of changed) {
     const pkgs = new Set(outsideDiff.map((h) => h.rel.split("/").slice(0, -1).join("/") || "."))
     if (pkgs.size > 1) console.log(dim(`    spans ${pkgs.size} packages, and ${outsideDiff.length} of them are not in the diff`))
     if (!untested.length) {
-      console.log(green(`    all ${outsideDiff.length} untouched caller(s) sit in files a test imports`))
+      // "all 0 sit in files a test imports" is a reassuring sentence about nothing. When every
+      // caller is inside the diff there is no outside caller, and that is a different fact.
+      console.log(
+        outsideDiff.length
+          ? green(`    all ${outsideDiff.length} untouched caller(s) sit in files a test imports`)
+          : dim("    every caller is in the change, so there is no outside caller to worry about"),
+      )
       continue
     }
     anyUntested = true
@@ -286,8 +396,16 @@ if (!totalSymbols) {
   console.log(dim("  The change may be internal to a file. That is fine - but say so, do not imply a blast radius.\n"))
   process.exit(0)
 }
+if (!anyUntested && callablesWithCallers === 0) {
+  // No callable in the change has a production caller, so there was nothing to find untested. The
+  // reassuring summary would be a lie here: it reads as "everything was checked", and the honest
+  // statement is that there was nothing to check.
+  console.log(yellow(`  ${totalSymbols} exported name(s) touched, and none of them has a production caller.`))
+  console.log(dim("  Nothing to find, so nothing was verified. New code, or dead code - say which.\n"))
+  process.exit(0)
+}
 if (!anyUntested) {
-  console.log(green(`  every untouched caller of ${totalSymbols} changed symbol(s) sits in a file a test imports.`))
+  console.log(green(`  every untouched caller of ${callablesWithCallers} changed function(s) sits in a file a test imports.`))
   console.log(dim("  That is module-level evidence, not proof each caller is exercised.\n"))
   process.exit(0)
 }
