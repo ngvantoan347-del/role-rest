@@ -47,6 +47,11 @@ claim the repo now ships:
 - `verification-techniques.md` is the ladder, with the stopping rule.
 - The prose that taught what a strong model already knows was cut.
 
+Note what the runs did **not** establish about `falsify.mjs`. The A/B compared the *skill*, and the
+skill arm reached for falsification by hand; the script was written afterwards. Nothing here
+measures it. The only evidence anyone has is that it found two gaps in this repo's own code on
+first run - which is one tool catching bugs in itself, not a benchmark.
+
 ## What it costs
 
 SKILL.md body went from 17,507 chars (~4,400 tokens) to 8,971 (~2,200) — a **49% cut**, paid on

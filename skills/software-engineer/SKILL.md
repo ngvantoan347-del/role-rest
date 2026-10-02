@@ -85,13 +85,24 @@ node scripts/ci.mjs --no-falsify          # skip the falsification pass (the slo
 node scripts/verify.mjs --changed          # the project's real gates, affected packages only
 node scripts/smells.mjs --changed          # mechanical debt in the diff
 node scripts/falsify.mjs                   # make "tests pass" falsifiable
+node scripts/falsify.mjs --list            # which breaks apply, run nothing
 ```
 
 Why `falsify.mjs` exists: "tests pass" costs an agent nothing to say, and nothing in that same
-session can contradict it. This breaks your code the way a bug would - removes the throws, the
-awaits, inverts a comparison, drops a guard - then requires the suite to go red. A break that
-survives is a branch with no test, usually the one you just added. Zero config, scoped to the
-diff, runs in seconds, so it fits the loop between reading a diff and answering.
+session can contradict it. It breaks your code the way a bug would - removes a throw, drops a
+guard, inverts a comparison - then requires the suite to go red. Zero config, scoped to the diff,
+runs in seconds, so it fits the loop between reading a diff and answering.
+
+**Two lines of its output decide what you may claim:**
+
+- `src/checkout.js:4  swallow-error, unguard` - survivors are reported **by line**. Quote it that
+  way.
+- `reach: 6 break(s) from 7 decision point(s)` - this **bounds** the claim. Could not build a break
+  for a decision point means a clean run there is *nothing found*, not *nothing wrong*. Say so.
+  Calling a low-reach pass "verified" is the same error as calling a green suite verified.
+
+It mutates one site at a time on purpose: mutating every guard in a file at once lets one tested
+guard stand in for the untested ones beside it.
 
 Report the commands you ran and exactly what they printed, errors included. A gate that does not
 exist is **not verified**, not a pass. A failing test means you are not done: fix the cause, do not
@@ -157,6 +168,7 @@ What changed      - behaviour, not a file listing
 Files             - path, grouped by purpose
 Design            - the contract chosen, and why it over the alternative
 Verification      - the specific commands + exactly what they printed, including surviving breaks
+                    and the reach line that bounds them
 Not done / risks  - deferred debt, unverified areas, remaining risk
 Decisions needed  - what the user must choose ("none" is a legitimate answer at T1)
 ```
