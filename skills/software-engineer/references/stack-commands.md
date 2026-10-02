@@ -1,10 +1,8 @@
 # Stack Commands
 
-The real gates, per ecosystem.
-
-**The rule that overrides everything: the project's config wins.** `scripts` in
-`package.json`, the CI workflow, or the `Makefile` is the source of truth - not the table
-below. `node scripts/verify.mjs` detects them; this table tells you **what to look for**.
+The project's own config wins: `scripts` in `package.json`, the CI workflow, or the `Makefile`
+is the source of truth, not the table below. `node scripts/verify.mjs` detects them; this table
+is what to look for when it finds nothing.
 
 The paths here are relative to the directory holding `SKILL.md`: the skill installs into
 `.agents/skills/`, `.claude/skills/`, or the OpenCode cache, a different location in each, so
@@ -47,7 +45,7 @@ Two conditions are not in the command table and still have to hold:
 
 ## Reporting
 
-Name the command and the **real** result:
+Name the command and the real result:
 
 ```text
 Verification

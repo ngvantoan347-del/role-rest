@@ -1,11 +1,10 @@
 # CI Integration
 
-The scripts that ship with this skill are built to run **in a company's CI**, not only on a
-developer's machine. This page is the seam: how to wire them in, how to read the exit codes,
-and the places it is easy to wire them wrong.
+How to wire these scripts into a pipeline, how to read the exit codes, and where it is easy to
+wire them wrong.
 
-Why this file exists: a script that works on a laptop but breaks in CI is worse than no script,
-because it turns a gate into a false pass. The most common reasons are reading `MISSING` as
+A script that works on a laptop but breaks in CI is worse than no script, because it turns a gate
+into a false pass. The most common reasons are reading `MISSING` as
 `PASS`, and copying a command without running it on the same image.
 
 Filter: only what concerns these three scripts. How to organise a pipeline, branch protection,
@@ -35,7 +34,7 @@ turns the most useful output into a retry. `falsify` also exits `1` when it has 
 a clean tree, or a change with no source file - because "nothing was verified" is not "nothing was
 wrong".
 
-The last two rows are the easy ones to get wrong: `verify` uses `3` for **both** kinds of
+The last two rows are the easy ones to get wrong: `verify` uses `3` for both kinds of
 configuration error, while `smells` uses `2`. A pipeline that treats the two as one script and maps
 a single code for both will fail silently in one of the two branches.
 
@@ -56,7 +55,7 @@ to get the falsification pass - the slowest gate, and the only one that catches 
 
 ### Falsification in CI
 
-`falsify.mjs` rewrites files and restores them, so it must **not** run alongside another job on the
+`falsify.mjs` rewrites files and restores them, so it must not run alongside another job on the
 same checkout, and must not run on `pull_request_target` (a fork can edit your workflow). Give it
 its own job:
 

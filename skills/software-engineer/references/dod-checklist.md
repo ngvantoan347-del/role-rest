@@ -1,7 +1,7 @@
 # Definition of Done
 
-Any box you have not ticked is either fixed now or reported as a known gap. **"It works" is
-not an item on this list - evidence is.**
+An unticked box is either fixed before handoff or named in it. "It works" is not a box here;
+evidence is.
 
 Filter criterion: this checklist is only useful if you actually run it, not read it for the
 appearance. Skipped items must be **reported** too, because silence is the worst form of
@@ -9,7 +9,7 @@ silence.
 
 ## Correctness
 
-- [ ] Does the requested thing, and **only** the requested thing.
+- [ ] Does the requested thing, and only the requested thing.
 - [ ] The root cause is understood and stated, not just patched around.
 - [ ] The gates ran: specific tests, typecheck, lint, full suite, build - output kept.
 - [ ] Edge cases considered: empty, null, 0, negative, very large, unicode, concurrent.
@@ -42,11 +42,11 @@ silence.
 - [ ] No `TODO`/`FIXME`/`HACK`/`temp`/`quick fix` left in the tree.
 - [ ] No commented-out code, debug logging, or scaffolding files.
 - [ ] README, docs, examples, `.env.example` updated wherever the change made them wrong.
-- [ ] Comments explain **why**; noise comments are deleted. Changelog entry if there is one.
+- [ ] Comments explain why; noise comments are deleted. Changelog entry if there is one.
 - [ ] `git status` shows only the intended changes.
 
 **Reminder:** the `smells.mjs` item above is only a fraction. This checklist does not replace
-the judgment in `references/anti-patterns.md`. A green script is **not** done.
+the judgment in `references/anti-patterns.md`. A green script is not done.
 
 ## Security and data
 
@@ -54,7 +54,7 @@ the judgment in `references/anti-patterns.md`. A green script is **not** done.
 - [ ] Input validated at the boundary; queries parameterized; output escaped.
 - [ ] Auth and authorization are checked on the new paths.
 - [ ] Migrations additive, reversible, safe against live traffic.
-- [ ] Tenant id present in **every** query, cache key, and log - not just the main endpoint.
+- [ ] Tenant id present in every query, cache key, and log - not just the main endpoint.
 - [ ] New dependency: lockfile updated, license compatible, audit has no high severity.
 
 ## Scale and organization

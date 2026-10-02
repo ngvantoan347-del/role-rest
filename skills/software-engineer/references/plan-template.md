@@ -1,7 +1,7 @@
 # Plan Templates
 
-A plan is a contract with the user, not a rehearsal. It states **what changes, what does not
-change, how it is proven, and where it can break**. It contains no code.
+Write what changes, what stays, how it is proven, and where it breaks. No code - the point is
+that the user can object before any of it exists.
 
 Why write the plan early: it surfaces a misunderstanding while a misunderstanding is still
 cheap. Changing direction at the start costs a few lines of text. Changing direction after

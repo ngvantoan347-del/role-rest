@@ -1,11 +1,10 @@
 # Enterprise Standards
 
-In a large company, the rules existed before you arrived. This file covers how to find them,
-how to work inside them without breaking them, and how to know whether a change is yours to
-make.
+In a large company the rules existed before you arrived. How to find them, how to work inside
+them without breaking them, and how to tell whether a change is yours to make.
 
-Why: in a place with hundreds of engineers, what gets dropped under deadline pressure is not
-the technique - it is **who owns it**. Fixing the right code in another team's area is the
+Under deadline pressure, what gets dropped in a place with hundreds of engineers is not the
+technique, it is who owns it. Fixing the right code in another team's area is the
 fastest way to turn a T2 ticket into a 3am operations incident.
 
 ## 1. Where the standards live, and who can change them
@@ -40,7 +39,7 @@ different definitions of done, and CI is the second one. How to read CI config:
 
 ## 2. Ownership: your code and their code
 
-Check CODEOWNERS **before** you edit, not after CI goes red.
+Check CODEOWNERS before you edit, not after CI goes red.
 
 | Situation | Action |
 | --- | --- |
@@ -136,8 +135,8 @@ A red pipeline says **exactly one thing**: something failed. Read the log from t
 failing line, not the last - the last line is usually a consequence of a dependency or
 environment error.
 
-A green pipeline only says the checks in that pipeline are green. It does **not** say the
-logic is right, **not** that there is no regression, **not** that it is safe at scale.
+A green pipeline only says the checks in that pipeline are green. It does not say the
+logic is right, not that there is no regression, not that it is safe at scale.
 
 - **Never loosen a gate to get green.** No skipping tests, no disabling lint rules, no
   `--no-verify`, no adding `|| true`, no lowering the coverage threshold. See section 7 of

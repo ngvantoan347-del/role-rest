@@ -1,11 +1,10 @@
 # Compliance and Data
 
-The engineering decisions that later somebody will have to **prove with code**, not with
-words. Data classification, audit trail, access control, retention, dependency provenance,
-and the questions to answer before merging.
+Data classification, audit trail, access control, retention, dependency provenance, and the
+questions to answer before merging.
 
-Why this exists: the biggest risk acceptance number in most products is *"we have an audit
-trail"*. When there is an incident, or when a customer asks, the only answer worth anything
+The biggest risk-acceptance number in most products is "we have an audit trail". When there is an
+incident, or when a customer asks, the only answer worth anything
 is the artefact - a log line, a config, a commit - not a policy PDF. What is not present in
 the system does not exist, and that is true for compliance too.
 

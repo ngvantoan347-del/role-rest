@@ -1,11 +1,10 @@
 # Discovery Playbook
 
-How to read an unfamiliar codebase fast enough to change it safely. The goal: **10 minutes
-to a correct plan**, not to walk the whole project.
+Reading an unfamiliar codebase fast enough to change it safely. The target is ten minutes to a
+correct plan, not a tour of the whole project.
 
-Why the time limit matters: deep reading has value, but only inside the radius that leads to
-a decision. Reading past that point is procrastination wearing the costume of diligence - and
-it makes the user wait.
+Deep reading pays off only inside the radius that leads to a decision. Past that point it is
+procrastination wearing the costume of diligence, and the user is waiting.
 
 ## 0. Ask the question first
 
@@ -69,7 +68,7 @@ tree tells you how the author *intended* to organize; imports are the evidence.
 - **Wiring tells the truth.** Route tables, DI containers, plugin registries show what is
   actually connected - as opposed to what only exists on paper.
 - **Data is where the risk is.** Schema, migrations, serialization boundaries must be read
-  **before** you design anything that stores or sends data.
+  before you design anything that stores or sends data.
 
 ## 3. Read history when the code looks wrong
 

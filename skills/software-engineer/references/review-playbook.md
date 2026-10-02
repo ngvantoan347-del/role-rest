@@ -3,7 +3,7 @@
 Review goes two ways: reading someone else's diff, and re-reading your own change before you
 open the PR. The same set of questions applies to both.
 
-The **author**-side of a PR - description, formatting, secrets, when to split - is already in
+The author-side of a PR - description, formatting, secrets, when to split - is already in
 `references/git-workflow.md`. This file is the **reviewer side**: what to read first, what to
 ask, how to comment so you get heard, and when to block.
 
@@ -126,7 +126,7 @@ that gets no response still gets left there - silence when you have an opinion i
 
 ## 5. When the diff is too big to review
 
-The 400-line threshold in `references/git-workflow.md` is a limit the **author** sets on themselves. You
+The 400-line threshold in `references/git-workflow.md` is a limit the author sets on themselves. You
 are the reviewer, you do not have the authority to change that threshold - but you do have the authority
 to **admit you cannot review it**, and that is the only acceptable behaviour when a diff is beyond you.
 
@@ -146,7 +146,7 @@ Three legitimate moves when you cannot review it, in priority order:
 3. **Refuse to review.** There is not always the capacity to do it
    right.
 
-What is **never** acceptable: approving because the diff is long, to keep the history full of
+What is never acceptable: approving because the diff is long, to keep the history full of
 approvals. A long diff is not a safety signal; it is a signal that a lot has not been looked at.
 
 ## 6. Reviewing your own change
@@ -194,7 +194,7 @@ a security patch - the correct process is not a rubber stamp. It is:
 
 - Minimal review, **in place**, with whoever is on call: read the diff together, 10 minutes.
 - Record who approved it and which part they saw, in the PR or the ticket itself.
-- Name the part **not** reviewed and the remaining risk, instead of leaving it blank.
+- Name the part not reviewed and the remaining risk, instead of leaving it blank.
 - A follow-up task with an owner and a deadline, created at merge time, not "later".
 
 Approving flat something nobody read is putting your name as a signature on something you do
@@ -206,7 +206,7 @@ not understand. When it surfaces, that name is in the postmortem.
 asserting a style - that is a decision someone already paid for, and changing it costs more
 time than it returns. When you want to change a convention, that is its own change.
 
-Label every comment clearly: **must** (has a consequence), **suggestion** (I prefer), or
+Label every comment clearly: must (has a consequence), **suggestion** (I prefer), or
 **question** (I do not understand). An unlabeled comment is read as mandatory, and that way you
 create a blocker without creating value.
 
@@ -224,6 +224,30 @@ create a blocker without creating value.
 There is one case that is not a disagreement: **you find a real bug in the PR, unrelated to the
 change.** Do not fix it silently, and do not stay silent either. A separate small PR, with an owner, or
 add it to the queue. Silence is the choice of whoever is accountable for that bug - usually not you.
+
+## Reading the texture
+
+Worth a pass on its own, and it is not taste. Output that a reader can identify as generated costs
+you trust in the parts that are correct, and the reviewer who learned to skim you stops skimming
+code that genuinely needs attention. The tell table is in `SKILL.md` under *Write like a person did
+it*.
+
+How it shows up in a diff, which is where it is most expensive:
+
+- An abstraction arrives before the thing it abstracts. Three new files to hold a helper that would
+  have fit in the existing one.
+- Comments that explain what the code does. The code says that. A comment earns its place by saying
+  why the obvious version is wrong.
+- Names from a pattern rather than the domain: `data1`, `tempResult`, `processData2` in a function
+  about invoice reconciliation.
+- A test named after the function instead of the behaviour, so a rename breaks it and no change to
+  behaviour ever would.
+- Error paths that all return the same generic string because they were added by pattern, not from
+  what can actually go wrong.
+
+Say it as a normal review comment, and only when it is actually there. "This file is AI slop" is not
+a review comment; "`accountForRefund` returns the same 500 for a missing invoice and an expired
+one, so the retry logic upstream cannot tell them apart" is.
 
 ## The full loop
 

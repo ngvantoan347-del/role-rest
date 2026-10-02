@@ -1,7 +1,7 @@
 # Design Guide
 
-The decisions that are expensive to reverse. Read fully before a T3 change, skim the
-relevant section for T2.
+Read the whole file before a T3 change, skim the relevant section for T2. Everything here is a
+decision you will not get to take back cheaply.
 
 Filter criterion: keep only what **gets skipped when you are in a hurry**, with the reason.
 Pure technical knowledge - what HTTP is, what a transaction is - does not belong here, you
@@ -63,7 +63,7 @@ A migration is another kind of breaking change: read it that way.
 - UTC when storing, local when displaying, **always write the unit down**.
 - Money: integer of the smallest unit, or a decimal type. **Never binary float.**
 - Deletion: pick soft or hard per entity, and be consistent. Soft-deleted rows must be
-  excluded by default in **every** query.
+  excluded by default in every query.
 - Migrations: forward-only, additive by default, must run safely while old code still
   serves traffic, with a rollback or an explicit statement that there is none.
 
@@ -81,11 +81,11 @@ A migration is another kind of breaking change: read it that way.
 Why this is the most skipped section: nothing fails a test when you forget it.
 
 - Secrets from env only. No literals, no committed config.
-- Validate **every** input at the boundary: from clients, from the network, from files.
+- Validate every input at the boundary: from clients, from the network, from files.
 - Parameterize queries. Never build SQL out of strings.
 - Escape output. No `dangerouslySetInnerHTML`, `eval`, `exec`, or shell interpolation of
   untrusted values.
-- AuthN + authZ at **every** boundary. Deny is the default.
+- AuthN + authZ at every boundary. Deny is the default.
 - **Do not log or return more personal data than the feature needs.**
 - Rate limit and payload limits on everything public.
 - Dependencies: prefer maintained packages, read install scripts, audit before adding
@@ -94,7 +94,7 @@ Why this is the most skipped section: nothing fails a test when you forget it.
 ## Extensibility without over-engineering
 
 - Solve today's problem with the simplest structure that satisfies the contract.
-- Abstract when there are **two** genuinely different variants, or when the third copy
+- Abstract when there are two genuinely different variants, or when the third copy
   shows up - not when an imagined future variant does.
 - Config and composition over inheritance and monkey-patching.
 - When you add a seam, keep it narrow: one interface, one obvious implementation.

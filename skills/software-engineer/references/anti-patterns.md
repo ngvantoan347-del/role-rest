@@ -1,7 +1,7 @@
 # Anti-Patterns
 
-`smells.mjs` catches the mechanical part. This file is the part that **needs judgment** -
-the things a regex never reaches, and the things that actually break systems.
+`smells.mjs` catches the mechanical part. What follows is the part that needs judgment: the
+failures a regex never reaches, and the ones that actually break systems.
 
 Why it is separate: a regex matches strings. It does not know what the requirement is, which
 module owns the behavior, or what is correct at 10,000 records. Every row in the tables below
@@ -103,7 +103,7 @@ is to **name the endpoints and shape things deliberately**, not to try harder wi
 
 ## How to use this file
 
-Sections C through H are **not** about verification - they are about ownership, structure, and
+Sections C through H are not about verification - they are about ownership, structure, and
 design. Do not run one more command to "cure" a god object; you have to split it.
 
 Two things here are real verification, and they come first because they are cheaper than the

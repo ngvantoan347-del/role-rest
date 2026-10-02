@@ -1,11 +1,11 @@
 # Git Workflow
 
-Git is the project's memory. The rules below keep history readable, changes reversible, and
-secrets out of it.
+Four things go wrong: unreadable history, commits nobody can revert, secrets in the log, and a
+branch that was force-pushed. Each section below is one of those.
 
 ## Before staging
 
-`git status` and `git diff`, **every time**, before **every** stage. Never commit something
+`git status` and `git diff`, **every time**, before every stage. Never commit something
 you have not read. Confirm you are on the right branch. Scan the diff for `.env`, credentials,
 tokens, keys, real user data, internal URLs with embedded passwords. Keep build output and
 dependencies out of commits.
@@ -18,7 +18,7 @@ dependencies out of commits.
   `main` broken is a release incident waiting to deploy.
 - Separate refactors from behavior changes. Mixing them makes the diff unreviewable and the
   revert unsafe.
-- Message: an imperative subject under ~72 characters, a blank line, then the **why**. A
+- Message: an imperative subject under ~72 characters, a blank line, then the why. A
   message that only repeats the diff is a message that is missing.
 
 ```text
@@ -63,7 +63,7 @@ Risk/rollback   <what can break, how you would notice, how to undo it>
 Out of scope    <what you deliberately did not do>
 ```
 
-Call out what the reviewer **must** scrutinize: security, data, concurrency. Attach a
+Call out what the reviewer must scrutinize: security, data, concurrency. Attach a
 screenshot or a trace for UI changes and for logs. When review asks for a change: make it or
 explain it - do not silently rewrite the PR.
 

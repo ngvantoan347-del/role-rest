@@ -1,11 +1,11 @@
 # Migration and Legacy
 
-This section is for changes that cannot be undone with `git revert`: schema changes on large tables,
-replacing a running subsystem, upgrading a dependency by dozens of majors, or fixing code that has
-no tests. The content is filtered by exactly one criterion: **what gets skipped when you are under a
-deadline** - freeze behaviour, rollback switch, idempotency, measure usage before removing.
+Changes that cannot be undone with `git revert`: schema changes on large tables, replacing a
+running subsystem, upgrading a dependency by dozens of majors, or fixing code that has no tests.
+Filtered by one criterion, what gets skipped when you are under a deadline: freeze behaviour,
+rollback switch, idempotency, measure usage before removing.
 
-Why it is separate: this is the kind of change where "it runs on my machine" is worth nothing.
+"It runs on my machine" is worth nothing here.
 Every decision here revolves around a single question: **when it breaks at 3am, how do you
 reverse it, and how long does it take?**
 
@@ -68,7 +68,7 @@ Three traps in legacy code, all of which look like your own bug:
 | **Behaviour matches the bug report, not the doc** | The doc describes X, the bug report says Y, the code does Z | **The code is the truth about behaviour**, the bug report is evidence a user hit it, the doc is only intent. Fix the doc, and record the discrepancy in an issue |
 | **A vendor workaround that looks redundant** | Repeated retry, a null check twice, a timezone offset in one place | `git blame` shows what it was patching. Look at the original issue/commit. Removing it reproduces a bug fixed 2 years ago |
 
-No commit explains it, blame points at a merge line from last year — that is a **lost
+No commit explains it, blame points at a merge line from last year - that is a **lost
 decision**, not intent. Write it down as a comment or ADR the moment you understand it, because
 the next person will have no way to know.
 
@@ -123,7 +123,7 @@ risk, this is the normal state. Therefore:
 
 - Readers must accept both shapes until every instance is on the new version - the general rule
   in `references/design-guide.md` under "Backward compatibility".
-- Finishing the deploy does **not** mean the migration is done: you need a waiting window long
+- Finishing the deploy does not mean the migration is done: you need a waiting window long
   enough to be sure no old instance remains, and only then break the things only old instances need.
 - Rows created after the deploy do not exist in the old column. Rolling back to old code loses
   that data. This is why dual-write exists, and why rollback after step 3 is no longer cheap.
@@ -205,12 +205,12 @@ red test after a codemod is usually a real signal, not something to make green b
 Tell a lockfile-only diff apart from a real one - `npm ls <pkg>` shows the project's direct
 dependency (not the transitive ones), `git diff --stat -- <lockfile>` shows the churn.
 
-Lockfile-only means the versions of **real** dependencies did not change, only transitive ones.
+Lockfile-only means the versions of real dependencies did not change, only transitive ones.
 That still needs a build + test + attention, but it does not need a code re-read. Conversely,
 when the manifest does not change and the lockfile changes by thousands of lines: this is
 security or reproducibility, and it needs the full suite, not just a typecheck.
 
-For a large framework upgrade: run the suite **before** to get a baseline, and have a branch ready so
+For a large framework upgrade: run the suite before to get a baseline, and have a branch ready so
 you can take the old suite's output as a reference. Without a baseline every failure is ambiguous.
 
 ## 8. Changes spanning multiple runtimes

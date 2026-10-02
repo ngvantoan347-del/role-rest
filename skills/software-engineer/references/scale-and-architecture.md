@@ -2,22 +2,22 @@
 
 System-level decisions: whether to split a service, sync or events, how far to cache, who can
 see whose data, how to roll back. This is the part dropped fastest when the deadline bites,
-because everything here **runs** — nothing goes red as you write it.
+because everything here runs; nothing goes red as you write it.
 
-Why this file exists: mistakes at this level do not surface as you write them and do not surface
-in someone else's review. They surface when traffic grows, when the second tenant appears, on the
-third deploy of the day — by then the cost of the fix is a hundred times higher and often means a
+Mistakes at this level do not surface as you write them, and usually not in someone else's review.
+They surface when traffic grows, when the second tenant appears, on the
+third deploy of the day - by then the cost of the fix is a hundred times higher and often means a
 rewrite. `references/design-guide.md` covers how to set contracts inside one process; this file
 covers what happens when that contract crosses a wire, a queue, and hundreds of packages.
 
 Filter: keep only what gets dropped under deadline pressure. Pure technical definitions are not
-here — terminology is not content.
+here - terminology is not content.
 
 ## 1. Monorepo and polyrepo
 
 Layout decides **how you verify**, before you get to thinking about code quality. A monorepo gives you one commit, one search, one dependency graph, and cross-package refactors with no version dance; it charges the whole repo's blast radius for every commit. A polyrepo flips that trade: independent deploys, contracts explicit in versions, and you pay with no global search plus manual version pinning.
 
-The monorepo's real problem is **gates that cost too much**, not the build tool. A 20-25 minute full suite for a one-line fix means "I'll verify later" becomes the default — you just built yourself a reason to skip verification. The number 200 packages is a property of the repo architecture, not of your carelessness. A cheap gate is an architecture requirement.
+The monorepo's real problem is **gates that cost too much**, not the build tool. A 20-25 minute full suite for a one-line fix means "I'll verify later" becomes the default - you just built yourself a reason to skip verification. The number 200 packages is a property of the repo architecture, not of your carelessness. A cheap gate is an architecture requirement.
 
 ```bash
 nx affected -t typecheck,lint,test --base=origin/main   # affected packages
@@ -26,7 +26,7 @@ bazel query 'rdeps(//..., //libs/shared:all)'          # reverse deps = the comp
 pnpm -F <pkg> test && pnpm why <dep>                    # gate one package, find its dependents
 ```
 
-Do not hand-roll an "affected" command with a shell script comparing paths — it misses the multi-package case, which is exactly the case you most need gated. Ecosystem details: `references/stack-commands.md`.
+Do not hand-roll an "affected" command with a shell script comparing paths - it misses the multi-package case, which is exactly the case you most need gated. Ecosystem details: `references/stack-commands.md`.
 
 | Mistake | Why |
 | --- | --- |
@@ -35,11 +35,11 @@ Do not hand-roll an "affected" command with a shell script comparing paths — i
 | Ignoring the lockfile in the diff | A changed lockfile means the whole dependency tree can change versions |
 | Treating config files as unaffected | Config often lives in another package; build tags and path aliases follow it |
 
-A shared package with N internal consumers is **one public API with N callers** — changing its signature is a breaking change for all N, and it is where a small bug touches the most people. Ask `rdeps` / `pnpm why` before you change, and also ask whether consumers exist in other repos.
+A shared package with N internal consumers is **one public API with N callers** - changing its signature is a breaking change for all N, and it is where a small bug touches the most people. Ask `rdeps` / `pnpm why` before you change, and also ask whether consumers exist in other repos.
 
 ## 2. Services and boundaries
 
-Splitting a service is more a network organization decision than a technical one, and it costs far more than an interface. Do not split just because "it will scale" — that is the argument of someone who has not measured.
+Splitting a service is more a network organization decision than a technical one, and it costs far more than an interface. Do not split just because "it will scale" - that is the argument of someone who has not measured.
 
 | Situation | Choice | Why |
 | --- | --- | --- |
@@ -56,27 +56,27 @@ This is the part nobody tests until it happens for real, because locally everyth
 
 | What the dependency does | What breaks, and what blocks it | Why |
 | --- | --- | --- |
-| Latency goes up 10x | Connection pool fills up — you need timeouts | No timeout means each request holds a connection until the default expiry. Budget backwards from your SLA, and you need a `pool` timeout, not just read/write |
-| Availability drops | Capacity goes away — you need retry + backoff + jitter, then a circuit breaker | Unbounded retry turns their incident into your load; with no breaker the retries all land on the thing that is already on fire |
+| Latency goes up 10x | Connection pool fills up - you need timeouts | No timeout means each request holds a connection until the default expiry. Budget backwards from your SLA, and you need a `pool` timeout, not just read/write |
+| Availability drops | Capacity goes away - you need retry + backoff + jitter, then a circuit breaker | Unbounded retry turns their incident into your load; with no breaker the retries all land on the thing that is already on fire |
 | Slow at a middle hop | The whole chain's latency budget gets eaten | 3 hops × 200ms = 600ms while the SLA is 300ms. Call chains add up, and nobody adds them up |
-| One slow dependency eats the whole pool | The rest of the app dies with it — you need a bulkhead | A shared pool gives no isolation, so one weak side drags down everything |
+| One slow dependency eats the whole pool | The rest of the app dies with it - you need a bulkhead | A shared pool gives no isolation, so one weak side drags down everything |
 | Incompatible deploy | `null` slips into your logic | Your bug surfaces on their deploy, and you have no evidence for it |
 
 ### Retry without an idempotency key is a duplicate write
 
-A client that gets a timeout does not know whether you already wrote, so it retries — exactly as designed. But if the server has no key, the second attempt is a second write. For payment or inventory, that is a data bug, not a behaviour bug.
+A client that gets a timeout does not know whether you already wrote, so it retries - exactly as designed. But if the server has no key, the second attempt is a second write. For payment or inventory, that is a data bug, not a behaviour bug.
 
 - The key is generated by the **caller** and kept across retries. A server that
   generates the key itself gives every retry a different key, which means no idempotency
   at all.
 - The server stores the key together with the **returned result** in the same transaction as the side effect. Without
-  storing the result, a retry returns 2xx and does nothing — the client thinks it succeeded, the data is still wrong.
+  storing the result, a retry returns 2xx and does nothing - the client thinks it succeeded, the data is still wrong.
 - The key's TTL must be **longer than the client's retry window**. A `UNIQUE` on the key also
   covers a race between two instances.
 
 ## 3. Events and async
 
-A broker guarantees no loss. It does not guarantee no duplication. Every consumer must assume the message arrives one to three times, and must be idempotent from the start — fixing it after duplicate data exists in production costs far more than getting it right the first time.
+A broker guarantees no loss. It does not guarantee no duplication. Every consumer must assume the message arrives one to three times, and must be idempotent from the start - fixing it after duplicate data exists in production costs far more than getting it right the first time.
 
 | What the consumer must do | Why |
 | --- | --- |
@@ -91,18 +91,17 @@ A broker guarantees no loss. It does not guarantee no duplication. Every consume
 An event schema is a public contract, not an internal shape. Adding an optional field is fine,
 because old consumers skip unknown fields. Changing a field's type or a key's name is not, because
 the consumer fails to deserialize at **runtime**, not at build time. Changing a field's *meaning*
-(cents instead of dollars, UTC instead of local) is never fine — wrong data with nothing reporting
+(cents instead of dollars, UTC instead of local) is never fine - wrong data with nothing reporting
 an error, and that is the most expensive kind of bug. Deleting a field is only allowed after every
-consumer has dropped it: measure usage first, do not guess. Do not publish whole rows to the bus —
-publish the **minimum payload** the consumer needs, plus ids so it can look things up if it really
+consumer has dropped it: measure usage first, do not guess. Do not publish whole rows to the bus - publish the **minimum payload** the consumer needs, plus ids so it can look things up if it really
 needs to. A payload that has left your boundary outlives the code that produced it.
 
-**Dual-write.** "Write to the DB then publish the event" is two systems and no transaction covers both. There is always a gap, and it gets found by an unrelated incident, at the worst possible time. A transactional outbox — write the event into an `outbox` table in the same transaction, a separate process reads and publishes it — removes event loss, and gives you back three things: it is still at-least-once so consumers must still be idempotent; publish latency equals poll latency; and one more operational component to deploy, monitor and clean up. Do not treat this as a later task — an event write path without an outbox is debt already incurred, and it gets paid in data loss, not in a ticket.
+**Dual-write.** "Write to the DB then publish the event" is two systems and no transaction covers both. There is always a gap, and it gets found by an unrelated incident, at the worst possible time. A transactional outbox - write the event into an `outbox` table in the same transaction, a separate process reads and publishes it - removes event loss, and gives you back three things: it is still at-least-once so consumers must still be idempotent; publish latency equals poll latency; and one more operational component to deploy, monitor and clean up. Do not treat this as a later task - an event write path without an outbox is debt already incurred, and it gets paid in data loss, not in a ticket.
 
 ## 4. Multi-tenant SaaS
 
 The cheapest way to leak data between paying customers is to forget the filter in exactly one
-place. And the place it gets forgotten most is not SQL — it is the **cache key**.
+place. And the place it gets forgotten most is not SQL - it is the **cache key**.
 
 | Rule | Why |
 | --- | --- |
@@ -112,21 +111,21 @@ place. And the place it gets forgotten most is not SQL — it is the **cache key
 | Every cache key, object path, search index, log field is tenant-prefixed | A shared cache key is a data leak, and it leaves no trace in the logs |
 | Row-level security in the DB is the second line of defence | RLS protects you when the app code is wrong. Correct app code is the precondition for RLS doing anything |
 
-The cheapest effective test for this: take tenant A's token, call the API with an `id` belonging to tenant B, assert **404, not 403** — 403 reveals the existence of the data.
+The cheapest effective test for this: take tenant A's token, call the API with an `id` belonging to tenant B, assert **404, not 403** - 403 reveals the existence of the data.
 
-A tenant filter in SQL protects **data**, not **permissions** — two separate questions, two separate layers. A global role with no tenant attached is a bypass of the entire tenant scope. A tenant-scoped role (`owner` / `member` of tenant X) covers most B2B SaaS, but not when data is more sensitive than "the whole tenant". Resource-level is needed when the tenant has internal structure: team, project, product line.
+A tenant filter in SQL protects **data**, not **permissions** - two separate questions, two separate layers. A global role with no tenant attached is a bypass of the entire tenant scope. A tenant-scoped role (`owner` / `member` of tenant X) covers most B2B SaaS, but not when data is more sensitive than "the whole tenant". Resource-level is needed when the tenant has internal structure: team, project, product line.
 
 | Data isolation tier | What you get | What it does **not** give you |
 | --- | --- | --- |
 | Shared schema, `tenant_id` as a column | Cheapest, one migration for everyone | One query that forgets the filter is a data leak. One bad index hits every tenant. Backup, restore and downtime are shared too |
 | Schema per tenant | Queries need no filter, isolation at namespace level | Does not survive thousands of tenants: a migration = N schemas, connections = N schemas, still one failure domain |
-| DB per tenant | Near-absolute isolation, separate restore, noisy neighbour nearly gone | Per-tenant operational cost, cross-tenant queries need separate work, and it is **not** immune to one tenant misbehaving — it just turns into an ops problem |
+| DB per tenant | Near-absolute isolation, separate restore, noisy neighbour nearly gone | Per-tenant operational cost, cross-tenant queries need separate work, and it is **not** immune to one tenant misbehaving - it just turns into an ops problem |
 
-Choosing a tier is choosing which kind of failure you take. No tier is immune; they differ in whether the failure shows up early or late. And a noisy neighbour needs its own quota at any tier: rate limiting by IP is not rate limiting by tenant — a 500-seat tenant behind one NAT proxy is still one IP.
+Choosing a tier is choosing which kind of failure you take. No tier is immune; they differ in whether the failure shows up early or late. And a noisy neighbour needs its own quota at any tier: rate limiting by IP is not rate limiting by tenant - a 500-seat tenant behind one NAT proxy is still one IP.
 
-**Migration and backfill once you have many tenants:** succeeding at 3 tenants does not mean succeeding at a tenant with 40 million rows. A backfill must be **batched** (not one unbounded `UPDATE` — it holds a transaction open and blocks vacuum), **resumable** with a checkpoint so re-running it many times does no harm, tolerant of **both shapes** throughout the backfill (the same backward-compatibility rule in `references/design-guide.md`), **rate-limited** so it does not compete with real traffic, and **instrumented** with a count of rows done. A backfill is a deploy with no rollback, so "resumable" is the only thing that saves it when it breaks halfway.
+**Migration and backfill once you have many tenants:** succeeding at 3 tenants does not mean succeeding at a tenant with 40 million rows. A backfill must be **batched** (not one unbounded `UPDATE` - it holds a transaction open and blocks vacuum), **resumable** with a checkpoint so re-running it many times does no harm, tolerant of **both shapes** throughout the backfill (the same backward-compatibility rule in `references/design-guide.md`), **rate-limited** so it does not compete with real traffic, and **instrumented** with a count of rows done. A backfill is a deploy with no rollback, so "resumable" is the only thing that saves it when it breaks halfway.
 
-**Test isolation:** every test creates its own tenant, and fixtures do not carry a baked-in `tenant_id` — a fixture with a hardcoded tenant is a data leak walking silently into the suite. There must be at least one test proving tenant A cannot read tenant B's data; that is the only test this layer and below can protect. Caches and background jobs also need the tenant, because a cache key missing the tenant in tests still goes green and still breaks in production.
+**Test isolation:** every test creates its own tenant, and fixtures do not carry a baked-in `tenant_id` - a fixture with a hardcoded tenant is a data leak walking silently into the suite. There must be at least one test proving tenant A cannot read tenant B's data; that is the only test this layer and below can protect. Caches and background jobs also need the tenant, because a cache key missing the tenant in tests still goes green and still breaks in production.
 
 ## 5. Data at scale
 
@@ -137,22 +136,22 @@ Choosing a tier is choosing which kind of failure you take. No tier is immune; t
 | Cursor on `updated_at` | An update happens between two reads | When `updated_at` changes, items are missed or repeated; the cursor must be based on an immutable key |
 | Page size with no cap | The client sends `?limit=100000` itself | One request kills the database |
 
-A cursor should be the pair `(created_at, id)` so the order is unique — with only `created_at`, two rows sharing a timestamp make the cursor ambiguous.
+A cursor should be the pair `(created_at, id)` so the order is unique - with only `created_at`, two rows sharing a timestamp make the cursor ambiguous.
 
 **No caps die in their own way.** A query with no `LIMIT` kills the database; an `IN (...)` built from user input blows up the query plan. Threads, goroutines, connections per request with no cap turn load growth into resource growth instead of throughput. A queue with no length cap means a full buffer becomes a drop or backpressure, and both need an explicit decision. An in-memory cache with no cap OOMs, exactly at peak traffic. Retries with no cap turn an incident into itself multiplied.
 
-**N+1 at the ORM layer:** default lazy loading is an N+1 — one query fetches N rows, then N queries, one per row. It does not surface with 10 rows of data and surfaces when the table has 10 thousand. How to catch it: count queries on **one real endpoint**. Turn off lazy loading in dev so an N+1 becomes an exception on the first run — that is why it is worth configuring.
+**N+1 at the ORM layer:** default lazy loading is an N+1 - one query fetches N rows, then N queries, one per row. It does not surface with 10 rows of data and surfaces when the table has 10 thousand. How to catch it: count queries on **one real endpoint**. Turn off lazy loading in dev so an N+1 becomes an exception on the first run - that is why it is worth configuring.
 
 ```sql
 EXPLAIN (ANALYZE, BUFFERS) SELECT ...;   -- Postgres
 EXPLAIN SELECT ...;                        -- MySQL
 ```
 
-Four things to look for in the plan: is the index actually used, estimated rows versus actual rows, any unexpected sort/temp sort, and which index is being fully scanned. Build an index on a large table with `CREATE INDEX CONCURRENTLY` (Postgres) — a normal index blocks writes for the whole build. And an index is a write cost: adding an index for every column in a `WHERE` is optimization by making everything slower.
+Four things to look for in the plan: is the index actually used, estimated rows versus actual rows, any unexpected sort/temp sort, and which index is being fully scanned. Build an index on a large table with `CREATE INDEX CONCURRENTLY` (Postgres) - a normal index blocks writes for the whole build. And an index is a write cost: adding an index for every column in a `WHERE` is optimization by making everything slower.
 
-**Partitioning and archival.** Partition by time when the table has retention: it turns "cleaning up old data" from a bulk `DELETE` — slow, locking, generating enormous WAL, knocking over replication — into a near-instant `DROP`. A table nobody queries any more moves to cold storage; keeping it there only costs money without creating value.
+**Partitioning and archival.** Partition by time when the table has retention: it turns "cleaning up old data" from a bulk `DELETE` - slow, locking, generating enormous WAL, knocking over replication - into a near-instant `DROP`. A table nobody queries any more moves to cold storage; keeping it there only costs money without creating value.
 
-**Caching.** TTL always exists, even when you think it does not need one — a cache with no TTL lives forever and lives wrong. Invalidate explicitly on write when the key is known, because relying on a TTL for user data that is read right after a write means they see stale data. The key must reflect **every** dimension that changes the result, including identity and tenant — a key missing one permission dimension is a cache read of someone else's data. Use single-flight for hot keys, because a cache stampede means N requests hitting the DB at once the moment the key expires.
+**Caching.** TTL always exists, even when you think it does not need one - a cache with no TTL lives forever and lives wrong. Invalidate explicitly on write when the key is known, because relying on a TTL for user data that is read right after a write means they see stale data. The key must reflect every dimension that changes the result, including identity and tenant - a key missing one permission dimension is a cache read of someone else's data. Use single-flight for hot keys, because a cache stampede means N requests hitting the DB at once the moment the key expires.
 
 **Backpressure.** When the consumer is slower than the producer, three options, and all three must be said out loud before you install one: cap the input (503), trading away some traffic but clearly and measurably; buffer with a limit then drop in a controlled way, only allowing event types that are droppable, so data loss is by design and not an incident; or block the producer, hold the data, and reduce throughput system-wide. Silence is the fourth option, and it becomes an OOM at peak load.
 
@@ -161,21 +160,21 @@ Four things to look for in the plan: is the index actually used, estimated rows 
 | Bug | Mechanism | Why |
 | --- | --- | --- |
 | Lost update | `UPDATE ... WHERE version = $1`, or `SELECT ... FOR UPDATE` | Read-then-write is not atomic; two requests read the same value and each overwrites the other |
-| Double submit | An idempotency key from the client | Without a key that is two **technically valid** transactions — the system is doing exactly what was asked |
+| Double submit | An idempotency key from the client | Without a key that is two **technically valid** transactions - the system is doing exactly what was asked |
 | TOCTOU | A `UNIQUE` constraint, `INSERT ... ON CONFLICT DO NOTHING` | The gap between `SELECT` and `INSERT` is where the second request slips in |
 | Two workers claim one job | `SELECT ... FOR UPDATE SKIP LOCKED` in a transaction, with a lease that expires | Worker dies without releasing the job → the lease expires and it can be claimed again → the handler must be idempotent |
 | Distributed lock | `SET key value NX PX ttl` **and** a lock-resolution primitive | A lock whose TTL expires while you still hold it → two owners at once. And nobody can hold the contract between the lock and the DB transaction |
 | Cache stampede | Single-flight, jittered TTL | A hot key's TTL expiring = N requests hitting the DB at once |
 
-A `UNIQUE` constraint usually beats a distributed lock: a lock protects you from two processes acting at once, a constraint protects you from **every** client including clients that do not go through the lock. The constraint lives in storage so it does not vanish when a process dies. When a rule can be expressed as a constraint, use the constraint — a lock is the answer for the thing you do not yet know can be expressed.
+A `UNIQUE` constraint usually beats a distributed lock: a lock protects you from two processes acting at once, a constraint protects you from every client including clients that do not go through the lock. The constraint lives in storage so it does not vanish when a process dies. When a rule can be expressed as a constraint, use the constraint - a lock is the answer for the thing you do not yet know can be expressed.
 
-**Clock skew.** A host off by a few seconds is enough to break expiring tokens, webhook signature verification, and work queue leases. Why: you are comparing host A's `now()` with host B's `now()`, and neither is absolutely right — whatever produces "5 minutes ago" is "5 minutes from now" with just a few seconds of drift. For tokens and signatures: rotate secrets with an **acceptable skew limit** written down explicitly. For leasing and dedup: use a version counter from storage, not the clock. For reporting: use the server clock as the source and state the timezone.
+**Clock skew.** A host off by a few seconds is enough to break expiring tokens, webhook signature verification, and work queue leases. Why: you are comparing host A's `now()` with host B's `now()`, and neither is absolutely right - whatever produces "5 minutes ago" is "5 minutes from now" with just a few seconds of drift. For tokens and signatures: rotate secrets with an **acceptable skew limit** written down explicitly. For leasing and dedup: use a version counter from storage, not the clock. For reporting: use the server clock as the source and state the timezone.
 
-**"Exactly-once" is a lie told with a transaction in the wrong place.** A database transaction is local to **one** database: it does not cover an HTTP call, it does not cover the broker, it does not cover the queue. What you actually get is at-least-once plus an idempotent consumer, and in most systems that is enough. When someone says "exactly-once", ask two questions: which boundary, and when it breaks, what state is the data in. The second question usually has no answer, and that is the answer.
+**"Exactly-once" is a lie told with a transaction in the wrong place.** A database transaction is local to one database: it does not cover an HTTP call, it does not cover the broker, it does not cover the queue. What you actually get is at-least-once plus an idempotent consumer, and in most systems that is enough. When someone says "exactly-once", ask two questions: which boundary, and when it breaks, what state is the data in. The second question usually has no answer, and that is the answer.
 
 ## 7. Observability is a delivery requirement
 
-A change with no observability is a change that is not done — not a "later" task.
+A change with no observability is a change that is not done - not a "later" task.
 
 | Must ship with | Why |
 | --- | --- |
@@ -184,19 +183,19 @@ A change with no observability is a change that is not done — not a "later" ta
 | Trace propagation across every outbound call | Without a trace the diagnostic chain is guesswork |
 | A dashboard if the metric is dangerous enough to need an alert | A metric nobody looks at does not exist |
 
-The module-level log section is in `references/design-guide.md`. This is the system-level part: the things that must exist **before** it reaches users.
+The module-level log section is in `references/design-guide.md`. This is the system-level part: the things that must exist before it reaches users.
 
-**A correlation id must cross async boundaries.** Put it in the header/message metadata on send; the consumer picks it up, keeps it when logging, and creates a new id for child spans. Otherwise you have a log at the producer and a log at the consumer with no link — exactly when you most need the trace, you do not have it. Same mechanism for trace context over HTTP and across the message broker. And **metrics must not carry ids**: a metric labelled with a user id, tenant id or request id is a dead metric — cardinality explodes, and it costs money in a way you cannot measure.
+**A correlation id must cross async boundaries.** Put it in the header/message metadata on send; the consumer picks it up, keeps it when logging, and creates a new id for child spans. Otherwise you have a log at the producer and a log at the consumer with no link - exactly when you most need the trace, you do not have it. Same mechanism for trace context over HTTP and across the message broker. And **metrics must not carry ids**: a metric labelled with a user id, tenant id or request id is a dead metric - cardinality explodes, and it costs money in a way you cannot measure.
 
-**Alert on symptoms, not causes.** CPU > 80% is a bad alert: it is not always a problem, and it fires exactly when you are scaling legitimately. Good is a 5xx ratio or p99 latency over SLO — something users feel. Similarly, queue depth is a consequence while end-to-end latency is what the user is waiting on; pod restarts are ops' job while error rate per endpoint is yours. An alert needs a clear action: "endpoint is slow" does nothing, "checkout p99 > 2s for 15 minutes" does.
+**Alert on symptoms, not causes.** CPU > 80% is a bad alert: it is not always a problem, and it fires exactly when you are scaling legitimately. Good is a 5xx ratio or p99 latency over SLO - something users feel. Similarly, queue depth is a consequence while end-to-end latency is what the user is waiting on; pod restarts are ops' job while error rate per endpoint is yours. An alert needs a clear action: "endpoint is slow" does nothing, "checkout p99 > 2s for 15 minutes" does.
 
-**SLOs and error budget.** Measure by user journey, not per service, so it decides behaviour — and the budget then lets you ship fast and stops you fixing first. This is what turns "being careful" from a feeling into a rule, and the only thing that fights alert fatigue. The number must be signed off, not defaulted: an SLO of 99.9% means roughly 43 minutes of downtime a month for **every** user at the same time, and it needs someone accountable for reading it and accepting it.
+**SLOs and error budget.** Measure by user journey, not per service, so it decides behaviour - and the budget then lets you ship fast and stops you fixing first. This is what turns "being careful" from a feeling into a rule, and the only thing that fights alert fatigue. The number must be signed off, not defaulted: an SLO of 99.9% means roughly 43 minutes of downtime a month for every user at the same time, and it needs someone accountable for reading it and accepting it.
 
 **"We'll add monitoring later"** never gets added, because by then the incident is over and nobody has the details any more. Adding observability to a three-month-old change is close to writing it from scratch.
 
 ## 8. Release and rollback in a large organisation
 
-**A feature flag is a contract**, and every attribute has a reason: it has an owner, naming a person or team, because a flag nobody owns is a flag nobody deletes. It has an expiry date written in code, because a flag that lives forever is a branch of code you no longer test and nobody dares delete because it might be on somewhere. It has a reassessment step at every deploy, or the dead-flag rate grows monotonically. Both states must be tested — flag off is code that has never run, flag on is a path that is tested; missing one of the two means you have a branch nobody verifies. And a flag is an escape hatch, not a configuration mechanism: a pure variant change is a label. Flag debt is the same kind of debt as `TODO` debt.
+**A feature flag is a contract**, and every attribute has a reason: it has an owner, naming a person or team, because a flag nobody owns is a flag nobody deletes. It has an expiry date written in code, because a flag that lives forever is a branch of code you no longer test and nobody dares delete because it might be on somewhere. It has a reassessment step at every deploy, or the dead-flag rate grows monotonically. Both states must be tested - flag off is code that has never run, flag on is a path that is tested; missing one of the two means you have a branch nobody verifies. And a flag is an escape hatch, not a configuration mechanism: a pure variant change is a label. Flag debt is the same kind of debt as `TODO` debt.
 
 | Rollout step | Stop when | Why |
 | --- | --- | --- |
@@ -210,7 +209,7 @@ Invariant: **widen slowly, shrink fast.** If you need a meeting to roll back, it
 
 1. A rollback is just a deploy of the old version, with no reverse code to
    write.
-2. **Old code can read new data.** This is the most-skipped condition: adding a `NOT NULL` column, changing a type, `RENAME` a column, or adding a value to an enum that old code does not know — all of these crash old code **after** you roll back. Redeploying the old version and finding it does not run is the worst outcome that can happen.
+2. **Old code can read new data.** This is the most-skipped condition: adding a `NOT NULL` column, changing a type, `RENAME` a column, or adding a value to an enum that old code does not know - all of these crash old code **after** you roll back. Redeploying the old version and finding it does not run is the worst outcome that can happen.
 3. The failure path is separated from the happy path by a flag, so it can be turned off without
    a rollback.
 4. You know in advance who decides the rollback and how long it takes to get
@@ -218,7 +217,7 @@ Invariant: **widen slowly, shrink fast.** If you need a meeting to roll back, it
 
 Condition 2 is why `design-guide.md` requires additive migrations and readers that accept both shapes.
 
-**A config change is a deploy too.** It goes through the same pipeline, has the same chance of breaking, and usually has **no** feature flag, **no** test and **nobody** has ever rolled it back. Bad config breaks production no less than a bad deploy, and it is skipped in every rollback plan. A config that changes behaviour must be versioned, reviewed, and have a safe default.
+**A config change is a deploy too.** It goes through the same pipeline, has the same chance of breaking, and usually has no feature flag, no test and **nobody** has ever rolled it back. Bad config breaks production no less than a bad deploy, and it is skipped in every rollback plan. A config that changes behaviour must be versioned, reviewed, and have a safe default.
 
 | Migration step | What it does | Runs with old code |
 | --- | --- | --- |
@@ -259,7 +258,7 @@ to **report**, not a detail to skip.
 - Your diff contains `tenant_id`, cache, queue, event, retry, lock, or
   `idempotency`.
 - Multiple customers share the system and their data must not mix.
-- Before calling a design "big enough" — ask how it breaks when N grows a hundredfold.
+- Before calling a design "big enough" - ask how it breaks when N grows a hundredfold.
 
 What you do not need yet: a one-person project, no second customer, a single process. There
 most of what is in this file is over-engineering, and `references/design-guide.md` is enough.
@@ -269,5 +268,5 @@ most of what is in this file is over-engineering, and `references/design-guide.m
 None of the above exists to make the system more complex. It all comes down to one question:
 **when something breaks, do you know exactly where it broke, and can you get back?**
 
-A change with no answer to both of those is not done — no matter how clean the code, how green
+A change with no answer to both of those is not done - no matter how clean the code, how green
 the tests, and how approved the PR.

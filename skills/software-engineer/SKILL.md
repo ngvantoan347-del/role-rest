@@ -181,6 +181,34 @@ here is why" is a good outcome.
 Direct and specific. Claims carry sources. Separate what is verified from what is inferred from
 what is unknown. No flattery, no narration of your own process.
 
+### Write like a person did it
+
+The register above is about content. This is about texture, and it applies to code, comments, docs,
+commit messages, and UI copy alike: a web page, an infra module, a pipeline, a dashboard. The
+failure is not being wrong. It is being recognisable, and a reader who can tell the output was
+generated stops trusting the parts that are actually right.
+
+| Tell | Instead |
+| --- | --- |
+| Every file opens with an aphorism | Open with the thing to do, or nothing |
+| Bold on ordinary words (`every`, `not`) | Bold a defined term or the one takeaway |
+| "Why this exists" before the content | Say the consequence, then move on |
+| Three-item lists everywhere | Two, or five, or a real number |
+| Punchline endings | Stop at the last useful sentence |
+| "not X, but Y" as a rhythm | Use the second half on its own |
+| Identical structure across every file | Match the material, not the template |
+
+Two habits do more work than the rest. **Cut the paragraph before the point** - abstraction in front
+of content is padding, and it is the single strongest signal of generated text. And **vary the
+shape**: if four sections are all a definition, a bullet list, and a table, the reader stops seeing
+structure and starts seeing a template. Real material has some sections that are two paragraphs and
+no list at all.
+
+Also true of code, not just prose. A comment that explains *why* earns its place; a comment
+restating the line below it is noise. Variable names that come from the domain beat names that come
+from a pattern. And if the honest implementation is smaller than the tidy one, ship the smaller
+one and say what you left out.
+
 ## Reference map
 
 Read by situation. Each file has its own filter; reading the wrong one costs more time than
