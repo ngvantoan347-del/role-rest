@@ -126,10 +126,22 @@ for (const f of onDisk) {
 // A cross-reference that resolves to nothing is a dead end in the middle of a task. Paths in
 // prose are relative to the skill directory, while manifest paths are relative to the
 // catalog, so this check resolves them against the file they appear in.
-for (const f of [...onDisk].filter((p) => p.startsWith(`${skillName}/references/`))) {
+//
+// Two forms are accepted: `references/foo.md`, and a bare `foo.md` when the prose is inside the
+// skill root. The bare form is what makes the reference map in SKILL.md readable as a table
+// instead of a column of paths, and it has to be checked too - an unverified link is worse than no
+// link, because it looks like it was checked.
+const linkRe = /`((?:references\/)?[a-z0-9._-]+\.md)`/g
+// The checker skips itself. Its own regex and its own examples live in a comment, so without this
+// it reports its source as broken - the first version of this rule did exactly that, which is a
+// cute bug and a useless one.
+const SELF = `${skillName}/tests/catalog.mjs`
+for (const f of [...onDisk].filter((p) => p.startsWith(`${skillName}/`))) {
+  if (f === SELF) continue
   const text = readFileSync(join(catalogRoot, f), "utf8")
-  for (const m of text.matchAll(/`(references\/[a-z0-9._-]+\.md)`/g)) {
-    if (!onDisk.has(`${skillName}/${m[1]}`)) problems.push(`${f} links to a missing file: ${m[1]}`)
+  for (const m of text.matchAll(linkRe)) {
+    const rel = m[1].startsWith("references/") ? m[1] : `references/${m[1]}`
+    if (!onDisk.has(`${skillName}/${rel}`)) problems.push(`${f} links to a missing file: ${m[1]}`)
   }
 }
 

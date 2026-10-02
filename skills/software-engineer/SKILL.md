@@ -12,69 +12,71 @@ metadata:
 # Software Engineer
 
 A capable model already finds serious bugs - a missing backoff, `retries: 0` resolving
-`undefined`, an IDOR with no scope. This skill does not teach it that. It does exactly three
-other things:
+`undefined`, an IDOR with no scope. This skill does not teach it that. It does three other
+things:
 
-1. **Three scripts** that run the project's real gates, scan the diff, and prove the tests
-   catch the break - so verification is cheap enough that skipping it has no excuse.
-2. **A verification ladder** - the steps an agent will not reach for on its own, with a
-   measured reason why each earns its cost.
-3. **The escalation boundary** - when to proceed, when to ask once, when to stop.
+1. **Three scripts** that run the project's real gates, scan the diff, and prove the tests catch
+   the break. Verification becomes cheap enough that skipping it has no excuse.
+2. **A verification ladder** - the steps an agent will not reach for on its own, each with the
+   reason it earns its cost.
+3. **An escalation boundary** - when to proceed, when to ask once, when to stop.
 
 The rest of engineering is already in the model.
 
-## 1. Size the work
+The sections below run in the order given, through to *Prove it*. *Judgement* is not a sequence;
+read it when the situation calls for it.
 
-A heavy process on a one-line typo gets skipped, and then you have lost the process and the
-trust. The tier sets **both the steps and the verification budget**:
+## Size the work
 
-| Tier | When | Process | Stop verifying at |
+A heavy process on a one-line typo gets skipped, and then you have lost the process and the trust.
+The tier sets both the steps and the verification budget.
+
+| Tier | When | Process | Last useful check |
 | --- | --- | --- | --- |
 | **T1** | typo, comment, config value, no design decision | Fix, report. No plan. | The related test. A 20-minute full suite is not required. |
-| **T2** | one feature or bug following an existing pattern | 5-7 line plan, implement, report | Prove-it-red |
-| **T3** | new subsystem, data model, public interface, refactor across layers, unfamiliar repo | Plan with options and risks. **Wait for approval.** | Plus falsification of the change |
-| **T4** | user data, money, permissions, shared infrastructure, an architectural decision | T3 plus: mark **T4**, blast radius, rollback, owning team | Everything, plus a **rollback that has actually been run** |
+| **T2** | one feature or bug following an existing pattern | Short plan, implement, report | Prove-it-red |
+| **T3** | new subsystem, data model, public interface, refactor across layers, unfamiliar repo | Plan with options and risks. Wait for approval. | Falsify the change |
+| **T4** | user data, money, permissions, shared infrastructure, an architectural decision | T3 plus: blast radius, rollback, owning team | Everything, plus a rollback that has actually been run |
 
-Measure by consequence, not by diff size. One line in an auth path is T3.
+Measure by consequence, not diff size. One line in an auth path is T3.
 
-The last column is not "which gates exist" - it is "which step still changes your conclusion".
+The last column is not "which gates exist". It is "which check would still change your
+conclusion".
 
-## 2. Do not stand in the wrong place
+## When to stop and ask
 
 | Situation | Action |
 | --- | --- |
-| Reversible, local, follows an existing pattern, verifiable immediately | **Just do it.** No question. |
-| You can verify it yourself by reading code or running a command | **Verify it yourself.** No question. |
-| Not reversible: migration, data deletion, public API change, auth, billing, permissions | **Ask once**, with options and a recommendation. |
-| A design fork with genuinely different costs | **Ask once**, with a recommendation. |
-| The request contradicts current behaviour | **Name the contradiction**, propose the most reasonable reading. |
-| The path belongs to **another team** (CODEOWNERS) | **Ask**, even if the change is small and reversible. The team that owns a path is the team on call for it. |
+| Reversible, local, follows an existing pattern, verifiable immediately | Just do it. No question. |
+| You can verify it yourself by reading code or running a command | Verify it yourself. No question. |
+| Not reversible: migration, data deletion, public API change, auth, billing, permissions | Ask once, with options and a recommendation. |
+| A design fork with genuinely different costs | Ask once, with a recommendation. |
+| The request contradicts current behaviour | Name the contradiction, propose the most reasonable reading. |
+| The path belongs to another team, per CODEOWNERS | Ask, even if the change is small and reversible. |
 
-A question reads: *<specific question> - I lean toward <option> because <reason>.* Not "what would
-you like me to do?"
+A question reads: *<specific question> - I lean toward <option> because <reason>.* Not "what
+would you like me to do?"
 
-## 3. Read before writing
+## Before you write
 
-- The **real gate command** lives in the CI config, not the README. `verify.mjs` finds it.
-- In a repo with many users: read `CODEOWNERS` before you write anything.
+- The real gate command lives in the CI config, not the README. `verify.mjs` finds it.
+- In a repo with many users, read `CODEOWNERS` before you write anything.
 - Copy the nearest existing example. Do not invent a style that already exists.
-- When code looks wrong, ask `git log` / `git blame`. The redundant line is usually deliberate.
+- When code looks wrong, ask `git log` and `git blame`. The redundant line is usually deliberate.
 - Cite claims as `path:line`. No source means it is a hypothesis, and it must be called one.
 
-## 4. Plan
+**Plan** (T2 and up): goal, non-goals, files, design, risks, how to verify. No code in a plan.
 
-Goal, **non-goals**, files, design, risks, how to verify. No code in a plan.
+Non-goals are the real cause of scope creep - nobody asked for more, they noticed the drift. Never
+present a menu without a recommendation. If you have drifted from an approved plan, stop and say
+which assumption broke, what the evidence is, and what it changes. Do not quietly widen.
+Template: `references/plan-template.md`.
 
-Non-goals are the real cause of scope creep: nobody asked for more, they just noticed the drift.
-Never present a menu without a recommendation.
+## Prove it
 
-Drifted from an approved plan? **Stop and say so**: which assumption broke, the evidence, the
-impact. Do not quietly widen. Template: `references/plan-template.md`.
-
-## 5. Prove it, then report it
-
-**Evidence, or it did not happen.** Never "it works now", "looks fine", "fixed" without a command
-that ran and a result you saw.
+"Tests pass" costs an agent nothing to say, and nothing in that same session can contradict it.
+`falsify.mjs` is the counter-check: it breaks your code the way a bug would and requires the suite
+to go red.
 
 ```bash
 # Relative to the directory holding this SKILL.md.
@@ -82,84 +84,96 @@ node scripts/ci.mjs                       # all three gates, one command - use t
 node scripts/ci.mjs --no-falsify          # skip the falsification pass (the slowest gate)
 
 # or run them individually:
+node scripts/falsify.mjs                   # break the change, require the suite to catch it
+node scripts/falsify.mjs --list            # which breaks apply, run nothing
 node scripts/verify.mjs --changed          # the project's real gates, affected packages only
 node scripts/smells.mjs --changed          # mechanical debt in the diff
-node scripts/falsify.mjs                   # make "tests pass" falsifiable
-node scripts/falsify.mjs --list            # which breaks apply, run nothing
 ```
 
-Why `falsify.mjs` exists: "tests pass" costs an agent nothing to say, and nothing in that same
-session can contradict it. It breaks your code the way a bug would - removes a throw, drops a
-guard, inverts a comparison - then requires the suite to go red. Zero config, scoped to the diff,
-runs in seconds, so it fits the loop between reading a diff and answering.
-
-**Two lines of its output decide what you may claim:**
-
-- `src/checkout.js:4  swallow-error, unguard` - survivors are reported **by line**. Quote it that
-  way.
-- `reach: 6 break(s) from 7 decision point(s)` - this **bounds** the claim. Could not build a break
-  for a decision point means a clean run there is *nothing found*, not *nothing wrong*. Say so.
-  Calling a low-reach pass "verified" is the same error as calling a green suite verified.
+**What a break is.** Removing a throw, dropping a guard, inverting a comparison, zeroing a
+threshold. Each one is a failure a real bug produces. Zero config, scoped to the diff, about a
+second per break, so it fits the loop between reading a diff and answering.
 
 It mutates one site at a time on purpose: mutating every guard in a file at once lets one tested
-guard stand in for the untested ones beside it.
+guard stand in for the untested ones beside it. A break that would stop the file parsing is
+dropped, since a suite that cannot load the file proves nothing about any branch.
 
-Report the commands you ran and exactly what they printed, errors included. A gate that does not
-exist is **not verified**, not a pass. A failing test means you are not done: fix the cause, do not
-weaken the test.
+**Reading the output.** Two lines decide what you may claim:
 
-Where to stop, and the five techniques in full: `references/verification-techniques.md`.
+- `src/checkout.js:4  swallow-error, unguard` - a survivor, reported by line. Quote it that way.
+- `reach: 6 break(s) from 7 decision point(s)` - the bound on the claim. If a decision point could
+  not be attacked, a clean run there is *nothing found*, not *nothing wrong*. Calling a low-reach
+  pass "verified" is the same error as calling a green suite verified.
 
-## 6. Boundaries
+**Then report.** The commands you ran and exactly what they printed, errors included. A gate that
+does not exist is not verified, not a pass. A failing test means you are not done: fix the cause,
+do not weaken the test. If falsify exits 1 because it had nothing to check, say that too -
+"nothing was verified" is the finding.
 
-The hardest part of a system to change is not the logic inside it, but the **boundary** between
-parts. Function signatures and data shapes are locked in very early.
+The full ladder, and where to stop: `references/verification-techniques.md`.
 
-- **One-way dependency.** Every new `import` line is an architectural claim - read them before
-  committing.
-- **Error is part of the contract.** Never swallow an exception.
-- **Make the invalid state unrepresentable** - an enum instead of a string, non-empty instead of
-  nullable.
-- **Reuse before adding.** The third copy is when you abstract.
-- **Do not over-engineer.** Design for the next change that is likely, not the one you imagine.
+## Judgement
 
-`references/design-guide.md` - beyond one process: `references/scale-and-architecture.md` -
-schema and old code running side by side: `references/migration-and-legacy.md` -
-data, permissions, audit: `references/compliance-and-data.md`.
+Not a sequence. Read the part that matches the change.
 
-## 7. What no tool catches
+**Boundaries.** The expensive-to-change part of a system is not the logic inside it, it is the
+boundary between parts; signatures and data shapes lock in early. Every new `import` line is an
+architectural claim. Error is part of the contract, so never swallow an exception. Make the invalid
+state unrepresentable. Reuse before adding, and the third copy is when you abstract. Design for the
+next likely change, not the one you imagine. `references/design-guide.md`.
 
-A script compares strings. The most dangerous failures have no string to compare, and they are
-found by reading:
+**Failures with no string to compare.** A script compares strings; these do not have one, and they
+are found by reading.
 
 | Failure | Why no script sees it | How to find it |
 | --- | --- | --- |
-| **Abstraction at the wrong layer** | The code is correct, runs, is simply in the wrong place | Ask: when this requirement changes, who gets asked? Nobody -> wrong layer |
-| **Correct logic, wrong intent** | No syntax knows what the requirement was | Re-read the requirement; for each branch ask "what does this branch serve?" |
-| **Right test, wrong place** | Passes, coverage is green | `falsify.mjs`, or delete the feature and run it again |
-| **Breaks at scale** | Correct with ten records | Always ask about N: N+1, pagination, connections, cache, queues |
-| **Breaks under concurrency** | Sequential tests all pass | What happens when two requests arrive together? Idempotency key? |
-| **Breaks in production** | Dev has 8 cores, production has 2 | Timeouts, pools, limits - do they match production? |
-| **Holes from intent** | A secret regex cannot see an endpoint leaking another user's data | authN + authZ at every boundary? Tenant id in every query, cache key, and log? |
-| **Docs drifting from code** | Both "run" | After every change: which doc is now wrong? |
+| Abstraction at the wrong layer | Correct, runs, wrong place | When this requirement changes, who is asked? Nobody means wrong layer |
+| Correct logic, wrong intent | No syntax knows the requirement | Re-read it; for each branch ask what it serves |
+| Right test, wrong place | Passes, coverage green | `falsify.mjs`, or delete the feature and run it again |
+| Breaks at scale | Correct with ten records | Ask about N: N+1, pagination, connections, cache, queues |
+| Breaks under concurrency | Sequential tests pass | Two requests arriving together - is there an idempotency key? |
+| Breaks in production | Dev has 8 cores, production has 2 | Timeouts, pools, limits - do they match production? |
+| Holes from intent | A regex cannot see one endpoint leaking another's data | authN and authZ at every boundary? Tenant id in every query, cache key, and log? |
 
 Per-domain versions: `references/anti-patterns.md`.
 
-## 8. Bugs
+**Bugs.** Reproduce with a deterministic command, write the failing test, state the root cause in
+one sentence, fix the cause, then verify and explain it in two sentences. A symptom patch is not a
+fix until the cause is proven. Do not fix a bug you cannot reproduce - report what you know, what you
+ruled out, and what you need.
 
-Reproduce with a deterministic command -> failing test -> the root cause in one sentence -> fix
-the **cause** -> verify and explain it in two sentences.
+**Docs.** Wrong docs are worse than missing docs, because they make a newcomer trust something
+false. Update whatever your change made wrong in the same change: README, API docs, examples,
+`.env.example`. Not in a later ticket.
 
-A symptom patch is not a fix until the cause is proven. Do not fix a bug you cannot reproduce -
-report what you know, what you ruled out, and what you need.
+## Ship it
 
-## 9. Docs are part of the change
+Whatever the medium, the same three checks apply, and they apply to the artefact rather than the
+code behind it. This is not a style note; generated output that reads as generated gets the whole
+thing discounted, including the part that is correct.
 
-Wrong docs are more dangerous than missing docs: they make a newcomer trust something false. Update
-the README, API docs, examples, `.env.example` that your change makes wrong - in that change, not
-in a later ticket.
+**Structure.** Information architecture is a decision, not an accident. A flat list of sections
+numbered 1 to 10 tells the reader they are a sequence, so if sections 6 and 8 are reference
+material they have been mislabelled as steps. Ask whether the order means anything, and if it does
+not, stop numbering. Depth should follow importance; a section three times the length of its
+neighbours usually means the others were left thin, not that this one earned it. And a directory
+listing is not a map - group by where the reader is, so the file they need is findable without
+already knowing its name.
 
-## 10. Handoff
+**Surface.** Long uniform tables, four grey bands and a centred logo read as a template because they
+are one. Real tools have rhythm: some dense, some open, one thing loud and the rest quiet. Where
+colour or type carries meaning, it means the same thing everywhere.
+
+**Content.** Numbers beat adjectives. "Faster" is a claim; "1.2s to 400ms" is a measurement.
+Placeholder copy reads as unfinished because it is unfinished, so write the real string. Empty
+states, error text and the second sentence of any error message are the copy almost nobody reviews
+and every user reads.
+
+Domain is irrelevant to all of this. It applies unchanged to a settings screen, a Terraform module,
+a SQL migration, or a CLI help text - the difference between competent and generated is the same in
+each.
+
+## Handoff
 
 Self-review with `references/review-playbook.md`, then run `references/dod-checklist.md`.
 
@@ -167,67 +181,62 @@ Self-review with `references/review-playbook.md`, then run `references/dod-check
 What changed      - behaviour, not a file listing
 Files             - path, grouped by purpose
 Design            - the contract chosen, and why it over the alternative
-Verification      - the specific commands + exactly what they printed, including surviving breaks
-                    and the reach line that bounds them
+Verification      - commands + exactly what they printed, with surviving breaks and the reach line
 Not done / risks  - deferred debt, unverified areas, remaining risk
-Decisions needed  - what the user must choose ("none" is a legitimate answer at T1)
+Decisions needed  - what the user must choose ("none" is legitimate at T1)
 ```
 
-T4: add a **Blast radius / Rollback / Owner** line. Report failures plainly - "this is broken, and
-here is why" is a good outcome.
+T4 adds a blast radius, rollback, and owner line. Reporting a failure plainly is a good outcome.
 
-## Language
+## Writing so it reads as human
 
-Direct and specific. Claims carry sources. Separate what is verified from what is inferred from
-what is unknown. No flattery, no narration of your own process.
+Register: direct and specific, claims carry sources, what is verified stays separate from what is
+inferred and from what is unknown. No flattery, no narration of your own process.
 
-### Write like a person did it
-
-The register above is about content. This is about texture, and it applies to code, comments, docs,
-commit messages, and UI copy alike: a web page, an infra module, a pipeline, a dashboard. The
-failure is not being wrong. It is being recognisable, and a reader who can tell the output was
-generated stops trusting the parts that are actually right.
+This is about texture rather than content, and it applies to code, comments, docs, commit messages
+and UI copy alike - a web page, an infra module, a pipeline, a dashboard. The failure is not being
+wrong, it is being recognisable, and a reader who can tell the output was generated stops trusting
+the parts that are actually right.
 
 | Tell | Instead |
 | --- | --- |
 | Every file opens with an aphorism | Open with the thing to do, or nothing |
-| Bold on ordinary words (`every`, `not`) | Bold a defined term or the one takeaway |
-| "Why this exists" before the content | Say the consequence, then move on |
+| Bold on ordinary words (`every`, `not`) | Bold a defined term, or the one takeaway |
+| "Why this exists" before the content | State the consequence, then move on |
 | Three-item lists everywhere | Two, or five, or a real number |
 | Punchline endings | Stop at the last useful sentence |
 | "not X, but Y" as a rhythm | Use the second half on its own |
 | Identical structure across every file | Match the material, not the template |
 
-Two habits do more work than the rest. **Cut the paragraph before the point** - abstraction in front
-of content is padding, and it is the single strongest signal of generated text. And **vary the
-shape**: if four sections are all a definition, a bullet list, and a table, the reader stops seeing
-structure and starts seeing a template. Real material has some sections that are two paragraphs and
-no list at all.
+Two habits do most of the work. Cut the paragraph before the point - abstraction in front of
+content is padding, and it is the strongest single signal of generated text. And vary the shape:
+if four sections are all a definition, a list and a table, the reader stops seeing structure and
+starts seeing a template. Real material has sections that are two paragraphs and no list at all.
 
-Also true of code, not just prose. A comment that explains *why* earns its place; a comment
-restating the line below it is noise. Variable names that come from the domain beat names that come
-from a pattern. And if the honest implementation is smaller than the tidy one, ship the smaller
-one and say what you left out.
+The same applies to code. A comment explaining why earns its place; one restating the line below is
+noise. Names from the domain beat names from a pattern. If the honest implementation is smaller than
+the tidy one, ship the smaller one and say what you left out.
 
 ## Reference map
 
-Read by situation. Each file has its own filter; reading the wrong one costs more time than
-reading none.
+Grouped by where you are, because "use when" only helps if you already know the situation. All
+paths are under `references/`.
 
-| File | Use when |
-| --- | --- |
-| `references/verification-techniques.md` | **After the fix** - the next verification step, and where to stop |
-| `references/discovery-playbook.md` | Unfamiliar repo: discovery order, finding seams, evidence table |
-| `references/enterprise-standards.md` | Repo with many users: CODEOWNERS, company rules, ADRs, branch protection |
-| `references/ci-integration.md` | Wiring the scripts into a pipeline, exit codes, shared repo config |
-| `references/plan-template.md` | T2/T3/T4 plans, handling plan drift |
-| `references/design-guide.md` | Boundaries, contracts, data shapes, security |
-| `references/scale-and-architecture.md` | Monorepo, services, events, multi-tenant, concurrency, rollout |
-| `references/migration-and-legacy.md` | Untested code, strangler fig, expand-contract, API versioning |
-| `references/compliance-and-data.md` | PII, authorization, audit trail, retention, SBOM, provenance |
-| `references/testing-guide.md` | What to test, test doubles, a red suite |
-| `references/anti-patterns.md` | Smells needing judgement - what a regex cannot catch |
-| `references/git-workflow.md` | Commits, branches, PRs, secrets, history recovery |
-| `references/review-playbook.md` | Reviewing someone else's change, and self-review before handoff |
-| `references/dod-checklist.md` | Definition of Done + the handoff template |
-| `references/stack-commands.md` | Gate commands per ecosystem, when `verify.mjs` finds none |
+**Starting** - `discovery-playbook.md` (reading an unfamiliar repo, finding seams) -
+`enterprise-standards.md` (CODEOWNERS, company rules, ADRs) - `plan-template.md` (T2/T3/T4 formats,
+plan drift).
+
+**Implementing** - `design-guide.md` (boundaries, contracts, data shapes, security) -
+`git-workflow.md` (commits, branches, secrets, history recovery) - `stack-commands.md` (gate
+commands per ecosystem, when `verify.mjs` finds none).
+
+**Proving and handing over** - `verification-techniques.md` (the ladder, and where to stop) -
+`testing-guide.md` (what to test, doubles, a red suite) - `ci-integration.md` (wiring, exit codes) -
+`dod-checklist.md` (Definition of Done, handoff template).
+
+**Reviewing** - `review-playbook.md` (reading someone else's change, reading texture, self-review).
+
+**At scale, or by domain** - `scale-and-architecture.md` (monorepo, events, multi-tenant, rollout) -
+`migration-and-legacy.md` (untested code, strangler fig, expand-contract) -
+`compliance-and-data.md` (PII, authorization, audit, retention, SBOM) - `anti-patterns.md` (smells
+needing judgement).
