@@ -26,6 +26,14 @@ The two scripts disagree, and this table is **measured**, not inferred:
 | `verify` | `2` | No gate could be detected to run | Red. This is not a pass |
 | `smells` | `2` | Bad flag, broken config, invalid rule pattern | Red - a configuration error |
 | `verify` | `3` | Bad `--format`, or unreadable `--config` | Red - a configuration error |
+| `falsify` | `1` | A break survived: a line with no test, or nothing to check | Red. This is the finding, not a failure of the tool |
+| `ci` | `1` | At least one gate failed | Red - it names which |
+
+`falsify` is the one people misread. Its `1` means the tool found a gap, which is the result you
+asked for; it never means "falsify broke". A pipeline that treats it as an infrastructure error
+turns the most useful output into a retry. `falsify` also exits `1` when it has nothing to check -
+a clean tree, or a change with no source file - because "nothing was verified" is not "nothing was
+wrong".
 
 The last two rows are the easy ones to get wrong: `verify` uses `3` for **both** kinds of
 configuration error, while `smells` uses `2`. A pipeline that treats the two as one script and maps

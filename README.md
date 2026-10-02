@@ -203,6 +203,7 @@ skills/
         ├── verify.test.mjs             22 tests
         ├── smells.test.mjs             32 tests
         ├── ci.test.mjs                 5 tests
+        ├── claims.test.mjs             11 tests, each breaking one rule on purpose
         ├── eval.mjs                    A/B harness against a no-skill baseline
         ├── fixture.mjs                 materialise an eval case's fixture repo
         ├── evals/evals.json            the cases and their assertions
@@ -214,7 +215,7 @@ skills/
 ## Developing on this repo
 
 ```bash
-npm test          # 75 tests across 4 suites
+npm test          # 86 tests across 5 suites
 npm run gate      # the skill's own gates, run on itself
 npm run spec      # SKILL.md satisfies the Agent Skills format
 npm run catalog   # skills/index.json matches disk, all references resolve

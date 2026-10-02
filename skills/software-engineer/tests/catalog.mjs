@@ -33,8 +33,26 @@ const manifestPath = candidates.map((p) => join(repoRoot, p)).find((p) => {
   }
 })
 if (!manifestPath) {
-  console.error(`no catalog manifest found; looked for: ${candidates.join(", ")} (relative to ${repoRoot})`)
-  process.exit(1)
+  // Absence here is usually not an error. `npx skills add` copies the skill directory and nothing
+  // else, so an installed copy has no manifest above it and this check has nothing to say.
+  // Exiting 1 would make a correct installation look broken - and a check that fires on healthy
+  // state is a check people learn to skip, which costs more than the check was worth.
+  //
+  // Guessing from the directory name does not work: a checkout puts the skill in `<repo>/skills/`
+  // and an install puts it in `<host>/skills/`, so both parents are called `skills`. The only
+  // reliable signal is a positive one - files that exist in the source repo and in no install.
+  const SOURCE_REPO_MARKERS = ["package.json", "demo.sh", ".software-engineer.json", "CONTRIBUTING.md"]
+  const looksLikeSourceRepo = SOURCE_REPO_MARKERS.some((f) => existsSync(join(repoRoot, f)))
+
+  if (looksLikeSourceRepo) {
+    console.error(
+      `no catalog manifest found in the source repo; looked for: ${candidates.join(", ")}\n` +
+        `  (relative to ${repoRoot}). An HTTP catalog install would fetch a skill with no files.`,
+    )
+    process.exit(1)
+  }
+  console.log("catalog ok: installed copy, no manifest here to check (expected outside the source repo)")
+  process.exit(0)
 }
 
 let manifest
