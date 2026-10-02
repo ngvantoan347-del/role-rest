@@ -113,7 +113,7 @@ cp -r role-rest/skills/software-engineer .opencode/skills/
 ## The three scripts
 
 ```bash
-node skills/software-engineer/scripts/ci.mjs        # all three, one command
+node skills/software-engineer/scripts/ci.mjs        # every gate, one command
 ```
 
 **`falsify.mjs`** - the one an agent will not run on its own. Breaks the changed code the way a
@@ -122,6 +122,12 @@ line, because that is the only version a reader can act on without going back to
 own reach, so a clean report on a file full of branches is not mistaken for a clean bill. Restores
 the working tree byte for byte, and verifies it did - a falsification tool that corrupts
 uncommitted work is worse than none.
+
+**`reach.mjs`** - every other script looks at the diff. That is the blind spot: a function you
+changed is called from 43 places, and the other 42 did not change, so nothing in the diff mentions
+them. `reach.mjs` names the call sites the diff cannot show you, and says which of them sit in files
+no test imports. An agent asked to count callers will produce a confident number from the handful of
+files it happened to read. Read-only; it never touches the working tree.
 
 **`verify.mjs`** - detects the project's real gates from its own config (`package.json`,
 `Makefile`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `mvnw`, and friends) and runs them. Reads
@@ -192,8 +198,9 @@ skills/
     │   ├── review-playbook.md          reviewing a change, self-review before handoff
     │   └── dod-checklist.md            Definition of Done + handoff template
     ├── scripts/
-    │   ├── ci.mjs                      all three gates, one command
+    │   ├── ci.mjs                      every gate, one command
     │   ├── falsify.mjs                 break the change, require the suite to catch it
+    │   ├── reach.mjs                   who calls what you touched, and who tested them
     │   ├── verify.mjs                  detect and run the project's real gates
     │   └── smells.mjs                  audit a diff for mechanical debt
     └── tests/
@@ -215,7 +222,7 @@ skills/
 ## Developing on this repo
 
 ```bash
-npm test          # 86 tests across 5 suites
+npm test          # 98 tests across 6 suites
 npm run gate      # the skill's own gates, run on itself
 npm run spec      # SKILL.md satisfies the Agent Skills format
 npm run catalog   # skills/index.json matches disk, all references resolve

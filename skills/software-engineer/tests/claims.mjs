@@ -66,8 +66,15 @@ for (const mentioned of new Set(allProse.match(/scripts\/[\w.-]+\.mjs/g) || []))
 const flagSource = new Map(scripts.map((f) => [f, read(join(SCRIPTS, f))]))
 
 for (const [path, text] of prose) {
-  // `<script>.mjs --flag` and `--flag` on a line that names a script.
-  const attributed = text.matchAll(/(verify|smells|falsify|ci)\.mjs\s+(--[\w-]+)/g)
+  // `<script>.mjs --flag` on one line. Two groups, and the script name must be capturing: with a
+  // non-capturing `(?:...)` the destructuring takes the whole match as the script, the lookup
+  // misses, and the rule silently checks nothing. It did exactly that for one commit, which is
+  // what the tests below exist to catch - a rule that quietly passes is worse than no rule.
+  //
+  // The alternation is built from the scripts on disk rather than typed out, because a hardcoded
+  // list goes stale the moment a script is added, and the new script's flags then go unverified.
+  const names = scripts.map((f) => f.replace(/\.mjs$/, "")).join("|")
+  const attributed = text.matchAll(new RegExp(`(${names})\\.mjs\\s+(--[\\w-]+)`, "g"))
   for (const [, script, flag] of attributed) {
     const src = flagSource.get(`${script}.mjs`)
     if (!src) continue

@@ -343,7 +343,7 @@ const CONFIG_LIKE = /(^|\/)(eslint|biome|ruff|flake8|tsconfig|suppress|lint|scan
 // out what a secret looks like, and its ignore list is a list of secret-shaped names. This is
 // separate from CONFIG_LIKE on purpose - a .env or a CI yaml holds credentials and must still
 // be scanned for them, while a rule table only holds the description of one.
-const RULE_TABLE = /(^|\/)(eslint|biome|ruff|flake8|suppress|scanner|smells|verify|ci|proof|falsify|deno|sonar)[^/]*\.(m?[jt]sx?|py|rb|go|rs)$/i
+const RULE_TABLE = /(^|\/)(eslint|biome|ruff|flake8|suppress|scanner|smells|verify|ci|proof|falsify|reach|deno|sonar)[^/]*\.(m?[jt]sx?|py|rb|go|rs)$/i
 
 // An inline escape hatch, required to be honest about itself: a bare suppression hides the
 // finding with no record of why. `smells:allow <id>` silences one rule on that line and

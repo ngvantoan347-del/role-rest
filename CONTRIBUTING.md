@@ -7,8 +7,8 @@ Thanks for looking. This file covers the two things a first contribution here us
 **Run the gates.** They are the same three the skill ships, pointed at this repo:
 
 ```bash
-npm test        # 86 tests across 5 suites
-npm run gate    # verify + smells + falsify, on this repo
+npm test        # 98 tests across 6 suites
+npm run gate    # verify + smells + reach + falsify, on this repo
 npm run spec    # SKILL.md against the Agent Skills format
 npm run catalog # manifest matches disk, references resolve
 npm run claims  # the prose describes the scripts that actually exist

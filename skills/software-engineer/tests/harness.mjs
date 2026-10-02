@@ -20,6 +20,7 @@ export const SCRIPTS = join(here, "..", "scripts")
 export const VERIFY = join(SCRIPTS, "verify.mjs")
 export const SMELLS = join(SCRIPTS, "smells.mjs")
 export const FALSIFY = join(SCRIPTS, "falsify.mjs")
+export const REACH = join(SCRIPTS, "reach.mjs")
 export const CI = join(SCRIPTS, "ci.mjs")
 
 /**

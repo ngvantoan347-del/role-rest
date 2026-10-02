@@ -49,7 +49,7 @@ One read is not enough. Run each of these questions, and **answer them out loud*
 
 | Question | What a bad answer looks like | Cheap check |
 | --- | --- | --- |
-| Who is affected by this diff? | "Internal only" without saying which internal | Read the real callers, count backwards from the new symbol |
+| Who is affected by this diff? | "Internal only" without saying which internal | `reach.mjs` - do not count by hand, an agent guesses from the files it read |
 | What breaks at 10× traffic? | A loop inside a loop, a `SELECT *` with no limit | Count queries per request, look for missing pagination |
 | What happens on partial failure? | Writing 3 tables with no transaction, then returning an error | List the side effects, ask which have to be atomic |
 | What about retry? | No idempotency key, a repeated side effect | Assume the request arrives a second time with the same payload |

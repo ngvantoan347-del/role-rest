@@ -15,8 +15,9 @@ A capable model already finds serious bugs - a missing backoff, `retries: 0` res
 `undefined`, an IDOR with no scope. This skill does not teach it that. It does three other
 things:
 
-1. **Three scripts** that run the project's real gates, scan the diff, and prove the tests catch
-   the break. Verification becomes cheap enough that skipping it has no excuse.
+1. **Four scripts** that run the project's real gates, scan the diff, find the callers nobody
+   looked at, and prove the tests catch the break. Verification becomes cheap enough that skipping
+   it has no excuse.
 2. **A verification ladder** - the steps an agent will not reach for on its own, each with the
    reason it earns its cost.
 3. **An escalation boundary** - when to proceed, when to ask once, when to stop.
@@ -35,7 +36,7 @@ The tier sets both the steps and the verification budget.
 | --- | --- | --- | --- |
 | **T1** | typo, comment, config value, no design decision | Fix, report. No plan. | The related test. A 20-minute full suite is not required. |
 | **T2** | one feature or bug following an existing pattern | Short plan, implement, report | Prove-it-red |
-| **T3** | new subsystem, data model, public interface, refactor across layers, unfamiliar repo | Plan with options and risks. Wait for approval. | Falsify the change |
+| **T3** | new subsystem, data model, public interface, refactor across layers, unfamiliar repo | Plan with options and risks. Wait for approval. | Falsify the change, check the reach |
 | **T4** | user data, money, permissions, shared infrastructure, an architectural decision | T3 plus: blast radius, rollback, owning team | Everything, plus a rollback that has actually been run |
 
 Measure by consequence, not diff size. One line in an auth path is T3.
@@ -60,6 +61,8 @@ would you like me to do?"
 ## Before you write
 
 - The real gate command lives in the CI config, not the README. `verify.mjs` finds it.
+- Before changing a function, `reach.mjs --file <path>` says who calls it. Do this first: it decides
+  how much is at stake, and it is the one fact a diff cannot give you.
 - In a repo with many users, read `CODEOWNERS` before you write anything.
 - Copy the nearest existing example. Do not invent a style that already exists.
 - When code looks wrong, ask `git log` and `git blame`. The redundant line is usually deliberate.
@@ -85,7 +88,7 @@ node scripts/ci.mjs --no-falsify          # skip the falsification pass (the slo
 
 # or run them individually:
 node scripts/falsify.mjs                   # break the change, require the suite to catch it
-node scripts/falsify.mjs --list            # which breaks apply, run nothing
+node scripts/reach.mjs                     # who calls what you touched, and who tested them
 node scripts/verify.mjs --changed          # the project's real gates, affected packages only
 node scripts/smells.mjs --changed          # mechanical debt in the diff
 ```
@@ -104,6 +107,20 @@ dropped, since a suite that cannot load the file proves nothing about any branch
 - `reach: 6 break(s) from 7 decision point(s)` - the bound on the claim. If a decision point could
   not be attacked, a clean run there is *nothing found*, not *nothing wrong*. Calling a low-reach
   pass "verified" is the same error as calling a green suite verified.
+
+**Then check the reach.** Every script above looks at the diff. That is the blind spot: a function
+you changed is called from 43 places and the other 42 did not change, so nothing in the diff mentions
+them and reading the diff cannot find them.
+
+```bash
+node scripts/reach.mjs          # per changed symbol: call sites, packages spanned, which are untested
+node scripts/reach.mjs --all    # include the callers tests do reach, for context
+```
+
+It prints `packages/api/routes.js:2  not in the diff, not reachable from a test`. That line is the
+whole reason to run it, and an agent asked to count call sites will produce a confident number from
+the handful of files it happened to read. Coverage there is module-level, not per-caller, and the
+tool says so rather than implying more.
 
 **Then report.** The commands you ran and exactly what they printed, errors included. A gate that
 does not exist is not verified, not a pass. A failing test means you are not done: fix the cause,
@@ -148,30 +165,21 @@ false. Update whatever your change made wrong in the same change: README, API do
 
 ## Ship it
 
-Whatever the medium, the same three checks apply, and they apply to the artefact rather than the
-code behind it. This is not a style note; generated output that reads as generated gets the whole
-thing discounted, including the part that is correct.
+Applies to the artefact, not the code behind it - a settings screen, a Terraform module, a SQL
+migration, CLI help text. Generated output that reads as generated gets discounted entirely,
+including the part that is correct.
 
-**Structure.** Information architecture is a decision, not an accident. A flat list of sections
-numbered 1 to 10 tells the reader they are a sequence, so if sections 6 and 8 are reference
-material they have been mislabelled as steps. Ask whether the order means anything, and if it does
-not, stop numbering. Depth should follow importance; a section three times the length of its
-neighbours usually means the others were left thin, not that this one earned it. And a directory
-listing is not a map - group by where the reader is, so the file they need is findable without
-already knowing its name.
-
-**Surface.** Long uniform tables, four grey bands and a centred logo read as a template because they
-are one. Real tools have rhythm: some dense, some open, one thing loud and the rest quiet. Where
-colour or type carries meaning, it means the same thing everywhere.
-
-**Content.** Numbers beat adjectives. "Faster" is a claim; "1.2s to 400ms" is a measurement.
-Placeholder copy reads as unfinished because it is unfinished, so write the real string. Empty
-states, error text and the second sentence of any error message are the copy almost nobody reviews
-and every user reads.
-
-Domain is irrelevant to all of this. It applies unchanged to a settings screen, a Terraform module,
-a SQL migration, or a CLI help text - the difference between competent and generated is the same in
-each.
+- A flat list of numbered sections claims to be a sequence. If some are reference material, they are
+  mislabelled as steps. Number only what is actually ordered.
+- A directory listing is not a map. Group by where the reader is, so the right entry is findable
+  without knowing its name.
+- Depth should follow importance. One section three times its neighbours' length usually means the
+  others were left thin.
+- Rhythm: uniform tables and identical shapes read as a template because they are one. Some parts
+  dense, some open, one thing loud.
+- Numbers beat adjectives. "Faster" is a claim; "1.2s to 400ms" is a measurement.
+- Write the real string. Placeholder copy reads as unfinished because it is unfinished.
+- Error text and empty states are copy nobody reviews and every user reads.
 
 ## Handoff
 
@@ -181,7 +189,8 @@ Self-review with `references/review-playbook.md`, then run `references/dod-check
 What changed      - behaviour, not a file listing
 Files             - path, grouped by purpose
 Design            - the contract chosen, and why it over the alternative
-Verification      - commands + exactly what they printed, with surviving breaks and the reach line
+Verification      - commands + what they printed, with surviving breaks, the reach line, and
+                     which callers you did not open
 Not done / risks  - deferred debt, unverified areas, remaining risk
 Decisions needed  - what the user must choose ("none" is legitimate at T1)
 ```
@@ -193,10 +202,9 @@ T4 adds a blast radius, rollback, and owner line. Reporting a failure plainly is
 Register: direct and specific, claims carry sources, what is verified stays separate from what is
 inferred and from what is unknown. No flattery, no narration of your own process.
 
-This is about texture rather than content, and it applies to code, comments, docs, commit messages
-and UI copy alike - a web page, an infra module, a pipeline, a dashboard. The failure is not being
-wrong, it is being recognisable, and a reader who can tell the output was generated stops trusting
-the parts that are actually right.
+Texture is a separate problem, and it applies to code, comments, docs, commit messages and UI copy
+alike. The failure is not being wrong, it is being recognisable - and a reader who can tell output
+was generated stops trusting the parts that are actually right.
 
 | Tell | Instead |
 | --- | --- |
@@ -208,14 +216,12 @@ the parts that are actually right.
 | "not X, but Y" as a rhythm | Use the second half on its own |
 | Identical structure across every file | Match the material, not the template |
 
-Two habits do most of the work. Cut the paragraph before the point - abstraction in front of
-content is padding, and it is the strongest single signal of generated text. And vary the shape:
-if four sections are all a definition, a list and a table, the reader stops seeing structure and
-starts seeing a template. Real material has sections that are two paragraphs and no list at all.
+Cut the paragraph before the point. Abstraction in front of content is padding, and it is the
+strongest single signal of generated text.
 
-The same applies to code. A comment explaining why earns its place; one restating the line below is
-noise. Names from the domain beat names from a pattern. If the honest implementation is smaller than
-the tidy one, ship the smaller one and say what you left out.
+Same for code: a comment explaining why earns its place, one restating the line below is noise. Names
+from the domain beat names from a pattern. If the honest implementation is smaller than the tidy one,
+ship the smaller one and say what you left out.
 
 ## Reference map
 

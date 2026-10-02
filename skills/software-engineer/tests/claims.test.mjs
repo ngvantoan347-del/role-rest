@@ -62,8 +62,8 @@ test("claims: a flag the script no longer accepts is caught", () => {
   // The incident this whole file exists for. SKILL.md kept naming a renamed flag for two commits
   // while every other test stayed green, because nothing compared the prose to the code.
   const dir = realSkill()
-  patch(dir, "SKILL.md", "--list", "--verify-all")
-  expects(check(dir), "falsify.mjs has no `--verify-all`", "a stale flag name must be reported")
+  patch(dir, "SKILL.md", "smells.mjs --changed", "smells.mjs --whole-repo")
+  expects(check(dir), "smells.mjs has no `--whole-repo`", "a stale flag name must be reported")
 })
 
 test("claims: a script deleted but still documented is caught", () => {
@@ -120,10 +120,34 @@ test("claims: a raw control byte in a shipped script is caught", () => {
   expects(check(dir), "raw control byte", "a byte that blinds grep must be reported")
 })
 
+test("claims: every script's flags are checked, not only the first four", () => {
+  // The alternation used to be typed out as four names. Adding reach.mjs left its flags unverified
+  // and nothing said so. This writes a bad flag onto reach specifically and requires the check to
+  // see it, which a hardcoded list cannot do.
+  const dir = realSkill()
+  patch(dir, "SKILL.md", "node scripts/reach.mjs  ", "node scripts/reach.mjs --not-a-flag ")
+  expects(check(dir), "reach.mjs has no `--not-a-flag`", "a newly added script's flags must be checked too")
+})
+
+test("claims: the flag rule cannot pass by matching the wrong group", () => {
+  // The regression that made the flag rule dead for one commit: the script name was written as a
+  // non-capturing group, so the lookup missed and every flag was skipped in silence. A rule that
+  // quietly checks nothing is the failure mode this file is most exposed to, so it gets a test
+  // that asserts the rule fires on each flag shape the prose actually uses.
+  const dir = realSkill()
+  const res = check(dir)
+  // The shipped skill names five scripts with flags across several files. None may be skipped, so
+  // the reported script count must match what the prose contains.
+  const flagged = (res.out.match(/-\s/g) || []).length
+  if (flagged !== 0) throw new Error(`the shipped skill must be clean\n${res.out}`)
+  patch(dir, "SKILL.md", "reach.mjs --all", "reach.mjs --nope")
+  expects(check(dir), "reach.mjs has no `--nope`", "the rule fires on the live table, not a stale copy")
+})
+
 test("claims: the check reports every problem, not just the first", () => {
   const dir = realSkill()
-  patch(dir, "SKILL.md", "--list", "--verify-all")
   patch(dir, "SKILL.md", "smells.mjs --changed", "smells.mjs --whole-repo")
+  patch(dir, "SKILL.md", "verify.mjs --changed", "verify.mjs --everywhere")
   const res = check(dir)
   const count = (res.out.match(/^  - /gm) || []).length
   if (count < 2) throw new Error(`expected both problems named, got ${count}\n${res.out.slice(0, 400)}`)

@@ -48,6 +48,7 @@ Do not conflate them, and do not let CI treat `2` as green.
 | --- | --- | --- |
 | Pre-commit | `smells.mjs --staged` | Cheap, runs in milliseconds, blocks secrets and disabled tests before they enter history |
 | Required check per PR | `ci.mjs --no-falsify` | This is the definition of "done" people are actually blocked by |
+| Required check per PR | `reach.mjs` | Cheap, read-only, and the only thing that sees callers the diff does not contain |
 | Nightly / main | `verify.mjs` (no `--changed`) | Runs the root **and every workspace unit**, catching packages the affected map skipped |
 
 `ci.mjs` runs `verify --changed`, `smells --changed`, then `falsify`. Drop `--no-falsify` on a PR
