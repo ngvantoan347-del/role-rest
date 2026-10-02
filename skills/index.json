@@ -2,7 +2,7 @@
   "skills": [
     {
       "name": "software-engineer",
-      "version": "10",
+      "version": "11",
       "files": [
         "software-engineer/SKILL.md",
         "software-engineer/references/anti-patterns.md",
@@ -26,6 +26,7 @@
         "software-engineer/scripts/verify.mjs",
         "software-engineer/tests/catalog.mjs",
         "software-engineer/tests/ci.test.mjs",
+        "software-engineer/tests/claims.mjs",
         "software-engineer/tests/eval.mjs",
         "software-engineer/tests/evals/evals.json",
         "software-engineer/tests/falsify.test.mjs",

@@ -28,6 +28,7 @@
     "test": "node skills/software-engineer/tests/run.mjs",
     "spec": "node skills/software-engineer/tests/spec.mjs",
     "catalog": "node skills/software-engineer/tests/catalog.mjs",
+    "claims": "node skills/software-engineer/tests/claims.mjs",
     "lint": "node skills/software-engineer/scripts/smells.mjs --strict",
     "verify:scripts": "node skills/software-engineer/scripts/smells.mjs --changed --format github",
     "gate": "node skills/software-engineer/scripts/ci.mjs"

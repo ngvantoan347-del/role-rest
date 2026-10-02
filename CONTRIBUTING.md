@@ -7,10 +7,11 @@ Thanks for looking. This file covers the two things a first contribution here us
 **Run the gates.** They are the same three the skill ships, pointed at this repo:
 
 ```bash
-npm test        # 72 tests across 4 suites
+npm test        # 75 tests across 4 suites
 npm run gate    # verify + smells + falsify, on this repo
 npm run spec    # SKILL.md against the Agent Skills format
 npm run catalog # manifest matches disk, references resolve
+npm run claims  # the prose describes the scripts that actually exist
 ```
 
 `npm run gate` includes `falsify.mjs`, which breaks the changed code and requires the suite to go
@@ -18,6 +19,15 @@ red. If you see `SURVIVED`, your test does not catch that break - fix the test, 
 
 **Do not edit `catalog/index.json` by hand and hope.** `npm run catalog` fails if the manifest and
 the tree disagree, which is the point. Add the file, run the check, it tells you what to list.
+
+**Changing a script means changing its prose in the same commit.** `npm run claims` fails if
+`SKILL.md` or a reference names a flag the script dropped, quotes an output string the script does
+not print, cites an exit code the script cannot return, or mentions a mutation that is not in the
+rule table. That check exists because the drift happened here: `falsify.mjs` was rewritten to
+report by line and to state its reach, and the prose described the old version for two commits
+while every other test stayed green. An agent reads `SKILL.md` and never opens the `.mjs`, so a
+stale flag name is not a documentation bug - it is a wrong instruction handed to the thing this
+repo is for.
 
 ## What a good change looks like here
 

@@ -207,7 +207,8 @@ skills/
         ├── fixture.mjs                 materialise an eval case's fixture repo
         ├── evals/evals.json            the cases and their assertions
         ├── spec.mjs                    SKILL.md vs the Agent Skills format
-        └── catalog.mjs                 manifest and cross-reference integrity
+        ├── catalog.mjs                 manifest and cross-reference integrity
+        └── claims.mjs                  prose vs the scripts it documents
 ```
 
 ## Developing on this repo
@@ -217,12 +218,20 @@ npm test          # 75 tests across 4 suites
 npm run gate      # the skill's own gates, run on itself
 npm run spec      # SKILL.md satisfies the Agent Skills format
 npm run catalog   # skills/index.json matches disk, all references resolve
+npm run claims    # the prose describes the scripts that actually exist
 npm run lint      # smells.mjs scanning this repo, strict, zero-warning budget
 ```
 
 `npm run spec` is not ceremony. A skill whose frontmatter is malformed is **not rejected
 anywhere** - it is simply never listed, so the repo looks healthy and the person installing it
 gets silence. Invisible to every other check here, which is exactly why it needs its own.
+
+`npm run claims` exists because of a real incident. `falsify.mjs` was rewritten to report
+survivors by line and to state its own reach, and `SKILL.md` kept describing the old version for
+two commits - no test compared the two. An agent reads `SKILL.md` and never opens the `.mjs`, so
+every fix was invisible to the only consumer that matters. The check now holds prose to the code:
+every flag named, every output string quoted, every exit code, every mutation id, and every
+shipped script mentioned somewhere.
 
 ### Language
 

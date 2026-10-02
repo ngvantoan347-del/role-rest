@@ -537,8 +537,8 @@ if (dryRun) {
     return out
   })
   for (const batch of workers) results.push(...batch)
-  const order = new Map(tasks.map((t, i) => [`${t.dir} ${t.gate}`, i]))
-  results.sort((a, b) => (order.get(`${a.dir} ${a.gate}`) ?? 0) - (order.get(`${b.dir} ${b.gate}`) ?? 0))
+  const order = new Map(tasks.map((t, i) => [`${t.dir}\u0000${t.gate}`, i]))
+  results.sort((a, b) => (order.get(`${a.dir}\u0000${a.gate}`) ?? 0) - (order.get(`${b.dir}\u0000${b.gate}`) ?? 0))
 } else {
   for (const t of runnable) {
     const r = runTask(t)

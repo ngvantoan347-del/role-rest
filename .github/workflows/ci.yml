@@ -36,6 +36,12 @@ jobs:
       - name: Catalog manifest matches disk
         run: node skills/software-engineer/tests/catalog.mjs
 
+      # The prose is what the agent actually uses; the scripts are what it runs. Nothing else
+      # compares them, so a renamed flag ships as a working script and a lying SKILL.md, and the
+      # failure lands on whoever installs this.
+      - name: SKILL.md and references describe the scripts that exist
+        run: node skills/software-engineer/tests/claims.mjs
+
       # The whole point of the repo is that `npx skills add <repo>` finds something. A layout
       # change that breaks discovery would pass every other check in this file.
       - name: Skill is discoverable by the ecosystem CLI
